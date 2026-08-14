@@ -1,0 +1,100 @@
+"""The four AAS submodels for the arm+conveyor asset cell (IEC 63278-1).
+
+Nameplate and TechnicalData are static; OperationalState and
+ConditionMonitoring carry live values that the gateway updates as new
+telemetry arrives.
+"""
+
+from __future__ import annotations
+
+from basyx.aas import model
+
+NAMESPACE = "https://aas-digital-twin.example/ids"
+
+
+def _prop(id_short: str, value: object, value_type: model.DataTypeDefXsd) -> model.Property:
+    return model.Property(id_short=id_short, value_type=value_type, value=value)
+
+
+def build_nameplate_submodel() -> model.Submodel:
+    """Static identification data: manufacturer, product, serial number."""
+    return model.Submodel(
+        id_=f"{NAMESPACE}/submodels/Nameplate",
+        id_short="Nameplate",
+        submodel_element={
+            _prop("ManufacturerName", "aas-digital-twin project", model.datatypes.String),
+            _prop("ManufacturerProductDesignation", "SimArm-3DOF", model.datatypes.String),
+            _prop("SerialNumber", "SIM-0001", model.datatypes.String),
+            _prop("YearOfConstruction", "2026", model.datatypes.String),
+            _prop("CountryOfOrigin", "Simulated", model.datatypes.String),
+        },
+    )
+
+
+def build_technical_data_submodel() -> model.Submodel:
+    """Static specs: degrees of freedom, payload, reach."""
+    return model.Submodel(
+        id_=f"{NAMESPACE}/submodels/TechnicalData",
+        id_short="TechnicalData",
+        submodel_element={
+            _prop("DegreesOfFreedom", 3, model.datatypes.Int),
+            _prop("MaxPayloadKg", 2.0, model.datatypes.Double),
+            _prop("ReachMeters", 0.65, model.datatypes.Double),
+            _prop("MaxJointVelocityRadPerS", 2.0, model.datatypes.Double),
+            _prop("ConveyorLengthMeters", 1.2, model.datatypes.Double),
+        },
+    )
+
+
+def build_operational_state_submodel() -> model.Submodel:
+    """Live operational values: joint positions, conveyor speed, cycle state.
+
+    Values start at zero/defaults; the gateway writes real values into this
+    submodel's properties as OPC UA telemetry arrives.
+    """
+    return model.Submodel(
+        id_=f"{NAMESPACE}/submodels/OperationalState",
+        id_short="OperationalState",
+        submodel_element={
+            _prop("Joint1PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint2PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint3PositionRad", 0.0, model.datatypes.Double),
+            _prop("ConveyorSpeedMPerS", 0.0, model.datatypes.Double),
+            _prop("TemperatureCelsius", 0.0, model.datatypes.Double),
+            _prop("CycleState", "IDLE", model.datatypes.String),
+        },
+    )
+
+
+def build_condition_monitoring_submodel() -> model.Submodel:
+    """Computed OEE KPI: availability, performance, quality, and the product.
+
+    All four values start at zero and are recomputed by the gateway from
+    real measured uptime/downtime and cycle counts, never hardcoded.
+    """
+    return model.Submodel(
+        id_=f"{NAMESPACE}/submodels/ConditionMonitoring",
+        id_short="ConditionMonitoring",
+        submodel_element={
+            _prop("Availability", 0.0, model.datatypes.Double),
+            _prop("Performance", 0.0, model.datatypes.Double),
+            _prop("Quality", 0.0, model.datatypes.Double),
+            _prop("OEE", 0.0, model.datatypes.Double),
+            _prop("TotalCycleCount", 0, model.datatypes.Int),
+            _prop("GoodCycleCount", 0, model.datatypes.Int),
+        },
+    )
+
+
+def build_asset_shell(submodels: list[model.Submodel]) -> model.AssetAdministrationShell:
+    """Build the AAS shell referencing all four submodels."""
+    asset_information = model.AssetInformation(
+        asset_kind=model.AssetKind.INSTANCE,
+        global_asset_id=f"{NAMESPACE}/assets/SimArm-3DOF-0001",
+    )
+    return model.AssetAdministrationShell(
+        id_=f"{NAMESPACE}/shells/SimArm-3DOF-0001",
+        id_short="SimArm3DofShell",
+        asset_information=asset_information,
+        submodel={model.ModelReference.from_referable(sm) for sm in submodels},
+    )
