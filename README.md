@@ -23,30 +23,40 @@ bridge, is the same code that would sit in front of a real machine.
 
 ```mermaid
 flowchart LR
-    subgraph Asset["Asset layer (RAMI 4.0: Asset)"]
+    subgraph Asset["Asset layer"]
         Gazebo["Gazebo Classic 11\n3-DOF arm + conveyor\n(ROS2 Humble)"]
         CycleManager["cycle_manager node\nRUNNING/DOWN duty cycle,\njoint trajectories, temperature"]
         Gazebo <--> CycleManager
     end
 
+    CycleManager -- "ROS2 topics" --> OPCUABridge["opcua_bridge_node\n(ROS2 <-> OPC UA)"]
+
     subgraph Comm["Communication layer"]
-        OPCUA["OPC UA server\n(asyncua)\njoint states, conveyor,\ntemperature, cycle state"]
+        OPCUA["AssetOpcUaServer\n(asyncua)\njoint states, conveyor,\ntemperature, cycle state"]
     end
 
-    CycleManager -- "ROS2 topics" --> OPCUABridge["opcua_bridge_node\n(ROS2 <-> OPC UA)"]
     OPCUABridge --> OPCUA
+    OPCUA -- "polled by" --> Gateway
 
     subgraph Info["Information layer"]
-        Gateway["Gateway\nOPC UA -> AAS -> MQTT"]
-        AAS["AAS REST API v3.0\n(basyx-python-sdk)\nNameplate | TechnicalData |\nOperationalState | ConditionMonitoring"]
-        Gateway --> AAS
-    end
+        Gateway["Gateway\n(gateway/bridge.py)"]
+        Nameplate["Nameplate submodel"]
+        TechnicalData["TechnicalData submodel"]
+        OperationalState["OperationalState submodel"]
+        ConditionMonitoring["ConditionMonitoring submodel\n(OEE = Availability x Performance x Quality)"]
+        RestApi["AAS REST API v3.0\n(basyx WSGIApp)"]
 
-    OPCUA -- "polled" --> Gateway
+        Gateway --> OperationalState
+        Gateway --> ConditionMonitoring
+        Nameplate --> RestApi
+        TechnicalData --> RestApi
+        OperationalState --> RestApi
+        ConditionMonitoring --> RestApi
+    end
 
     subgraph Functional["Functional layer"]
         MQTT["Eclipse Mosquitto"]
-        Dashboard["Matplotlib dashboard"]
+        Dashboard["live_dashboard.py\n(Matplotlib)"]
         MQTT --> Dashboard
     end
 
