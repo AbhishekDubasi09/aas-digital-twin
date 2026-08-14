@@ -39,9 +39,7 @@ async def test_gateway_propagates_opcua_values_into_aas_and_mqtt(
     def fake_publish(topic: str, payload: str) -> None:
         published.append((topic, payload))
 
-    gateway = Gateway(
-        opcua_endpoint=TEST_ENDPOINT, object_store=store, publish=fake_publish
-    )
+    gateway = Gateway(opcua_endpoint=TEST_ENDPOINT, object_store=store, publish=fake_publish)
     await gateway.run(poll_interval_s=0.0, max_iterations=1)
 
     operational_state = next(sm for sm in store if sm.id_short == "OperationalState")

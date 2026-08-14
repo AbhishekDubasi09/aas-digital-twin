@@ -7,12 +7,14 @@ telemetry arrives.
 
 from __future__ import annotations
 
+from typing import Any
+
 from basyx.aas import model
 
 NAMESPACE = "https://aas-digital-twin.example/ids"
 
 
-def _prop(id_short: str, value: object, value_type: model.DataTypeDefXsd) -> model.Property:
+def _prop(id_short: str, value: Any, value_type: model.DataTypeDefXsd) -> model.Property:
     return model.Property(id_short=id_short, value_type=value_type, value=value)
 
 

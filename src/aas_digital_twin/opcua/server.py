@@ -60,9 +60,7 @@ class AssetOpcUaServer:
             await node.set_writable()
             self._nodes.joint_positions.append(node)
 
-        self._nodes.conveyor_speed = await asset_cell.add_variable(
-            idx, "ConveyorSpeed", 0.0
-        )
+        self._nodes.conveyor_speed = await asset_cell.add_variable(idx, "ConveyorSpeed", 0.0)
         self._nodes.temperature = await asset_cell.add_variable(idx, "Temperature", 0.0)
         self._nodes.cycle_state = await asset_cell.add_variable(idx, "CycleState", "IDLE")
         self._nodes.cycle_count = await asset_cell.add_variable(

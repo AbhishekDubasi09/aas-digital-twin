@@ -26,9 +26,7 @@ def build_object_store() -> model.DictObjectStore:
     technical_data = build_technical_data_submodel()
     operational_state = build_operational_state_submodel()
     condition_monitoring = build_condition_monitoring_submodel()
-    shell = build_asset_shell(
-        [nameplate, technical_data, operational_state, condition_monitoring]
-    )
+    shell = build_asset_shell([nameplate, technical_data, operational_state, condition_monitoring])
 
     store: model.DictObjectStore = model.DictObjectStore()
     store.add(shell)

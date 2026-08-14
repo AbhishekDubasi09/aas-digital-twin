@@ -11,6 +11,7 @@ import json
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from aas_digital_twin.gateway.bridge import (
     MQTT_TOPIC_CONDITION_MONITORING,
@@ -64,7 +65,7 @@ def run_live_dashboard(mqtt_host: str = "localhost", mqtt_port: int = 1883) -> N
     buffer = TelemetryBuffer()
     start_time = time.monotonic()
 
-    def on_message(_client, _userdata, msg) -> None:
+    def on_message(_client: Any, _userdata: Any, msg: Any) -> None:
         buffer.ingest(msg.topic, msg.payload.decode(), time.monotonic() - start_time)
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
