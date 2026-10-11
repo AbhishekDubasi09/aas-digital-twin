@@ -69,6 +69,8 @@ launching Gazebo each run, so it stays runnable without a ROS2 environment.
 The full Gazebo-based asset layer is verified separately (see
 [ros2_ws/](ros2_ws/)) and is what the diagram above shows end to end.
 
+Diagrams (Mermaid sources, PNG and SVG) are in [docs/diagrams/](docs/diagrams/). Interview notes are in [docs/INTERVIEW_CHEATSHEET.md](docs/INTERVIEW_CHEATSHEET.md).
+
 ## Where this sits in RAMI 4.0
 
 IEC 63278-1 defines the Asset Administration Shell as the standardized
@@ -160,7 +162,7 @@ real MQTT broker all running in-process, requires a Mosquitto broker on
 `localhost:1883`, or pass `use_real_mqtt=False` to skip MQTT):
 
 ```bash
-python -m aas_digital_twin.demo
+python -m aas_digital_twin.demo   # or scripts/run_demo.sh
 ```
 
 This writes `docs/run_output/telemetry.jsonl` (every MQTT message actually
@@ -189,12 +191,13 @@ live Mosquitto broker. Nothing here is fabricated or hand-edited.
 
 ![OEE over time from a real demo run](docs/run_output/oee_over_time.png)
 
-In this particular run no fault was triggered by the simulator's random
-duty cycle (an 8% chance per cycle), so OEE climbs to and stays near 1.0.
-Because the fault is genuinely probabilistic, other runs show visible dips
-and recoveries in OEE as downtime accumulates, that dynamic was observed
-during development and is exactly what `Availability` in
-[`oee.py`](src/aas_digital_twin/aas/oee.py) is computing from.
+In this run the first fault hit right after the first cycle. About 6 s of
+downtime landed inside the first 7 s, so Availability starts near 0 and
+Performance flips between 0 and 1 while run time is tiny. This is a small
+sample warm-up effect, not a sensor fault. Availability then recovers to 0.61
+by 45 s and final OEE is 0.59 (A 0.614, P 1.0, Q 0.967, from the last message
+in `telemetry.jsonl`). Performance stays at its cap of 1.0 because the demo
+runs simulated cycles faster than the 4 s ideal cycle time.
 
 ## Limitations
 

@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant CM as cycle_manager
+    participant BR as opcua_bridge_node
+    participant OPC as AssetOpcUaServer
+    participant GW as Gateway
+    participant AAS as AAS submodels
+    participant MQ as Mosquitto
+    participant DB as live_dashboard
+    CM->>BR: ROS 2 telemetry topics (state, temperature, counts)
+    BR->>OPC: write OPC UA nodes
+    loop every 1 s
+        GW->>OPC: read AssetCell children
+        OPC-->>GW: values
+        GW->>AAS: write OperationalState
+        GW->>GW: compute_oee(uptime, downtime, cycles)
+        GW->>AAS: write ConditionMonitoring
+        GW->>MQ: publish operational_state and condition_monitoring
+    end
+    MQ-->>DB: JSON messages
+    DB->>DB: append to buffer, redraw plots

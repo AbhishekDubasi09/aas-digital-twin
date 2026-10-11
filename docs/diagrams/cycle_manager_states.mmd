@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> RUNNING
+    RUNNING --> RUNNING: after a cycle, 92 percent
+    RUNNING --> DOWN: after a cycle, 8 percent fault
+    DOWN --> RUNNING: timer expires, 3 to 10 s
+    note right of RUNNING
+        One pick and place cycle per tick.
+        total_cycles += 1.
+        good_cycles += 1 with 95 percent.
+        Conveyor 0.15 m/s.
+    end note
+    note right of DOWN
+        No cycles run. Conveyor 0 m/s.
+        Gateway adds elapsed time to downtime.
+    end note
