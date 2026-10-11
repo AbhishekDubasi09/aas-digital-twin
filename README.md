@@ -191,13 +191,14 @@ live Mosquitto broker. Nothing here is fabricated or hand-edited.
 
 ![OEE over time from a real demo run](docs/run_output/oee_over_time.png)
 
-In this run the first fault hit right after the first cycle. About 6 s of
-downtime landed inside the first 7 s, so Availability starts near 0 and
-Performance flips between 0 and 1 while run time is tiny. This is a small
-sample warm-up effect, not a sensor fault. Availability then recovers to 0.61
-by 45 s and final OEE is 0.59 (A 0.614, P 1.0, Q 0.967, from the last message
-in `telemetry.jsonl`). Performance stays at its cap of 1.0 because the demo
-runs simulated cycles faster than the 4 s ideal cycle time.
+OEE is 0 at t = 0 because no cycle has finished yet, then jumps to 1.0 once
+the first cycle completes (about 1 s). Early points rest on one or two
+cycles, so they are a small-sample warm-up effect. The first fault came
+at about 11 s, and Availability then fell to about 0.59 by 17 s. The run
+ended at OEE 0.57 (A 0.591, P 1.0, Q 0.963, from the last message in
+`telemetry.jsonl`). Performance stays at its cap of 1.0 because the demo
+runs simulated cycles faster than the 4 s ideal cycle time. The numbers
+differ on every run because faults are random.
 
 ## Limitations
 

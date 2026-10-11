@@ -1,0 +1,223 @@
+{
+  "shells": {
+    "paging_metadata": {
+      "cursor": "10"
+    },
+    "result": [
+      {
+        "idShort": "SimArm3DofShell",
+        "modelType": "AssetAdministrationShell",
+        "id": "https://aas-digital-twin.example/ids/shells/SimArm-3DOF-0001",
+        "assetInformation": {
+          "assetKind": "Instance",
+          "globalAssetId": "https://aas-digital-twin.example/ids/assets/SimArm-3DOF-0001"
+        },
+        "submodels": [
+          {
+            "type": "ModelReference",
+            "keys": [
+              {
+                "type": "Submodel",
+                "value": "https://aas-digital-twin.example/ids/submodels/Nameplate"
+              }
+            ]
+          },
+          {
+            "type": "ModelReference",
+            "keys": [
+              {
+                "type": "Submodel",
+                "value": "https://aas-digital-twin.example/ids/submodels/TechnicalData"
+              }
+            ]
+          },
+          {
+            "type": "ModelReference",
+            "keys": [
+              {
+                "type": "Submodel",
+                "value": "https://aas-digital-twin.example/ids/submodels/ConditionMonitoring"
+              }
+            ]
+          },
+          {
+            "type": "ModelReference",
+            "keys": [
+              {
+                "type": "Submodel",
+                "value": "https://aas-digital-twin.example/ids/submodels/OperationalState"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "submodels": {
+    "paging_metadata": {
+      "cursor": "10"
+    },
+    "result": [
+      {
+        "idShort": "Nameplate",
+        "modelType": "Submodel",
+        "id": "https://aas-digital-twin.example/ids/submodels/Nameplate",
+        "submodelElements": [
+          {
+            "idShort": "CountryOfOrigin",
+            "modelType": "Property",
+            "value": "Simulated",
+            "valueType": "xs:string"
+          },
+          {
+            "idShort": "ManufacturerName",
+            "modelType": "Property",
+            "value": "aas-digital-twin project",
+            "valueType": "xs:string"
+          },
+          {
+            "idShort": "ManufacturerProductDesignation",
+            "modelType": "Property",
+            "value": "SimArm-3DOF",
+            "valueType": "xs:string"
+          },
+          {
+            "idShort": "YearOfConstruction",
+            "modelType": "Property",
+            "value": "2026",
+            "valueType": "xs:string"
+          },
+          {
+            "idShort": "SerialNumber",
+            "modelType": "Property",
+            "value": "SIM-0001",
+            "valueType": "xs:string"
+          }
+        ]
+      },
+      {
+        "idShort": "TechnicalData",
+        "modelType": "Submodel",
+        "id": "https://aas-digital-twin.example/ids/submodels/TechnicalData",
+        "submodelElements": [
+          {
+            "idShort": "ConveyorLengthMeters",
+            "modelType": "Property",
+            "value": "1.2",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "DegreesOfFreedom",
+            "modelType": "Property",
+            "value": "3",
+            "valueType": "xs:int"
+          },
+          {
+            "idShort": "MaxPayloadKg",
+            "modelType": "Property",
+            "value": "2.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "MaxJointVelocityRadPerS",
+            "modelType": "Property",
+            "value": "2.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "ReachMeters",
+            "modelType": "Property",
+            "value": "0.65",
+            "valueType": "xs:double"
+          }
+        ]
+      },
+      {
+        "idShort": "OperationalState",
+        "modelType": "Submodel",
+        "id": "https://aas-digital-twin.example/ids/submodels/OperationalState",
+        "submodelElements": [
+          {
+            "idShort": "Joint1PositionRad",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "Joint3PositionRad",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "Joint2PositionRad",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "CycleState",
+            "modelType": "Property",
+            "value": "IDLE",
+            "valueType": "xs:string"
+          },
+          {
+            "idShort": "TemperatureCelsius",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "ConveyorSpeedMPerS",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          }
+        ]
+      },
+      {
+        "idShort": "ConditionMonitoring",
+        "modelType": "Submodel",
+        "id": "https://aas-digital-twin.example/ids/submodels/ConditionMonitoring",
+        "submodelElements": [
+          {
+            "idShort": "TotalCycleCount",
+            "modelType": "Property",
+            "value": "0",
+            "valueType": "xs:int"
+          },
+          {
+            "idShort": "OEE",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "Quality",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "GoodCycleCount",
+            "modelType": "Property",
+            "value": "0",
+            "valueType": "xs:int"
+          },
+          {
+            "idShort": "Performance",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          },
+          {
+            "idShort": "Availability",
+            "modelType": "Property",
+            "value": "0.0",
+            "valueType": "xs:double"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -32,12 +32,12 @@ Follow `docs/diagrams/architecture.png` from left to right.
 - Quality Q = good cycles / total cycles.
 - OEE = A x P x Q.
 
-Last message of the committed 45 s run (about 44.9 s in):
+Last message of the committed 45 s run (about 44.8 s in):
 
-- A = 0.614, so downtime was about 17.3 s of 44.9 s.
+- A = 0.591, so downtime was about 18.3 s of 44.8 s.
 - P = 1.0 (capped)
-- Q = 29 / 30 = 0.967
-- OEE = 0.614 x 1.0 x 0.967 = 0.593
+- Q = 26 / 27 = 0.963
+- OEE = 0.591 x 1.0 x 0.963 = 0.569 (log value 0.5695)
 
 Note on P: the demo runs its simulated cycles faster than the 4 s ideal time to fit 45 s. So P is capped at 1.0 for the whole run. P carries no information in this run.
 
@@ -71,7 +71,7 @@ I did not log which fix took longest in this repo. Pick the one you really remem
 - There is no image processing in this project.
 - The saved demo run uses an in-process simulator, not Gazebo. The Gazebo path was checked by hand, not by pytest.
 - The pytest suite does not talk to a live Mosquitto broker. The gateway test uses a fake publisher.
-- Start-up time counts as downtime in the first seconds of a run. See the plot caption.
+- The first seconds of a run rest on one or two cycles, so the curve is noisy there. The state IDLE before the first cycle is not counted as downtime.
 - The project was built with an AI coding assistant. I must be able to explain every module myself.
 
 ## Twelve likely questions
@@ -81,7 +81,7 @@ I did not log which fix took longest in this repo. Pick the one you really remem
 3. **Where is OEE computed and why there?** In the gateway, because it sees both the OPC UA values and the poll timing.
 4. **How do you measure downtime?** The gateway adds the gap between polls whenever the state reads DOWN. Resolution is the 1 s poll interval.
 5. **Is OEE hardcoded anywhere?** No. Only the ideal cycle time of 4 s is a constant.
-6. **Why is the early OEE curve jagged?** The first fault hit right after the first cycle. About 6 s of downtime landed in a window of 1 to 7 s, so A fell near 0. P flips between 0 and 1 because run time is tiny.
+6. **Why is the early OEE curve rough?** With zero cycles done, P and Q are 0, so OEE is 0 until the first cycle finishes at about 1 s. Early values rest on one or two cycles. The dip near 11 s is the first fault.
 7. **Why is P always 1?** The demo speeds up cycles, so cycles per run time exceed the ideal rate and P is capped.
 8. **Why OPC UA and MQTT both?** OPC UA for typed asset access, MQTT for cheap fan-out to consumers.
 9. **How did you test OPC UA?** A real asyncua client connects to the real server over TCP in `test_opcua_server.py`.
