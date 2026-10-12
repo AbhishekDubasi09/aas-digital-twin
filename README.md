@@ -161,10 +161,13 @@ pytest
 ```
 
 In-process demo without ROS or Gazebo (same OPC UA, AAS, gateway and MQTT
-code, simulated cell):
+code, simulated cell). It runs for 150 s and serves the AAS REST API on
+port 8080 while it runs. The URL only answers during the run.
 
 ```bash
 python -m aas_digital_twin.demo
+# in a second terminal, while it runs:
+curl http://127.0.0.1:8080/api/v3.0/submodels
 ```
 
 Full Gazebo run, with video of the Gazebo window and the dashboard:

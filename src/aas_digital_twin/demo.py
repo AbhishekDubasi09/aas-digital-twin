@@ -17,12 +17,14 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import socket
+import threading
 import time
 from pathlib import Path
 
 from asyncua import Client
 
-from aas_digital_twin.aas.api import build_object_store
+from aas_digital_twin.aas.api import build_object_store, build_wsgi_app
 from aas_digital_twin.asset import thermal_model as tm
 from aas_digital_twin.asset.fr3_kinematics import pick_and_place_waypoints
 from aas_digital_twin.gateway.bridge import Gateway, make_paho_publisher
@@ -89,6 +91,7 @@ async def run_demo(
     duration_s: float = 150.0,
     output_dir: Path | None = None,
     use_real_mqtt: bool = True,
+    rest_port: int | None = None,
 ) -> Path:
     """Run the full stack for a fixed duration and write telemetry + a plot.
 
@@ -97,6 +100,8 @@ async def run_demo(
         output_dir: where to write telemetry.jsonl and oee_over_time.png.
         use_real_mqtt: publish to a real Mosquitto broker on localhost:1883
             if True; otherwise use a no-op publisher (useful without a broker).
+        rest_port: if given, serve the AAS REST API v3.0 on this port during the run,
+            backed by the same object store the gateway updates.
 
     Returns:
         Path to the generated OEE-over-time plot.
@@ -111,6 +116,13 @@ async def run_demo(
     sim_task = asyncio.create_task(_run_asset_simulator(server, stop_event))
 
     store = build_object_store()
+    rest_server = None
+    if rest_port is not None:
+        from werkzeug.serving import make_server
+
+        rest_server = make_server("127.0.0.1", rest_port, build_wsgi_app(store), threaded=True)
+        threading.Thread(target=rest_server.serve_forever, daemon=True).start()
+        print(f"AAS REST API: http://127.0.0.1:{rest_port}/api/v3.0/submodels", flush=True)
     if use_real_mqtt:
         publish = make_paho_publisher(host="localhost", port=1883)
     else:
@@ -142,6 +154,8 @@ async def run_demo(
     stop_event.set()
     await sim_task
     await server.stop()
+    if rest_server is not None:
+        rest_server.shutdown()
 
     telemetry_path = output_dir / "telemetry.jsonl"
     with telemetry_path.open("w") as f:
@@ -188,7 +202,13 @@ def _plot_oee_series(
 
 def main() -> None:
     """CLI entrypoint: run the in-process demo and print where the outputs landed."""
-    plot_path = asyncio.run(run_demo())
+    try:
+        with socket.create_connection(("127.0.0.1", 1883), timeout=0.5):
+            have_broker = True
+    except OSError:
+        have_broker = False
+        print("No MQTT broker on localhost:1883, continuing without MQTT publishing.")
+    plot_path = asyncio.run(run_demo(use_real_mqtt=have_broker, rest_port=8080))
     print(f"Demo complete. OEE plot written to: {plot_path}")
 
 
