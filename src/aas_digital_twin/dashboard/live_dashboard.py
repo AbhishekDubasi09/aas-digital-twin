@@ -241,7 +241,9 @@ def render_from_csv(csv_path: Path, out_mp4: Path, out_png: Path, fps: int = 4) 
             now = frame / fps
             while idx < len(rows) and float(rows[idx]["t_s"]) <= now:
                 r = rows[idx]
-                op = {f"Joint{i}PositionRad": float(r[f"joint{i}_rad"]) for i in range(1, 8)}
+                op: dict[str, Any] = {
+                    f"Joint{i}PositionRad": float(r[f"joint{i}_rad"]) for i in range(1, 8)
+                }
                 op["TemperatureCelsius"] = float(r["temperature_c"])
                 op["CycleState"] = r["state"]
                 cm = {

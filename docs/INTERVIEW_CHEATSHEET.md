@@ -8,7 +8,7 @@ A pick-and-place cell loses output when the arm overheats and stops. The twin sh
 
 ## 60-second pitch
 
-I built a digital twin of a Franka Research 3 pick-and-place cell in Gazebo. The arm moves parts from a conveyor into a good bin and a reject bin. It heats up while it works, and above about 40 C it can trip into a stop of 20 to 40 seconds. A ROS 2 node runs the cell and publishes telemetry. An OPC UA server exposes it. A gateway reads it, fills four AAS submodels, computes OEE from measured uptime, downtime and cycle counts, and publishes to MQTT. When the temperature reaches 38 C the gateway writes a lower speed back over OPC UA. In my 300-seed model run that cut thermal stops from about two per run to zero and raised OEE from 0.63 to 0.69. In my single Gazebo pair the OEE was equal, because one run is noisy. There are 45 pytest tests and all pass. The asset is simulated, so none of this is factory data.
+I built a digital twin of a Franka Research 3 pick-and-place cell in Gazebo. The arm moves parts from a conveyor into a good bin and a reject bin. It heats up while it works, and above about 40 C it can trip into a stop of 20 to 40 seconds. A ROS 2 node runs the cell and publishes telemetry. An OPC UA server exposes it. A gateway reads it, fills four AAS submodels, computes OEE from measured uptime, downtime and cycle counts, and publishes to MQTT. When the temperature reaches 38 C the gateway writes a lower speed back over OPC UA. In my 300-seed model run that cut thermal stops from about two per run to zero and raised OEE from 0.63 to 0.69. In my single Gazebo pair the OEE was equal, because one run is noisy. There are 46 pytest tests and all pass. The asset is simulated, so none of this is factory data.
 
 ## 3-minute architecture walkthrough
 
@@ -93,5 +93,5 @@ Which fix took longest: the duplicate `cycle_manager` processes. The symptom loo
 8. **Does the twin really fix the problem?** It does not repair hardware. It senses, decides and sends a command. In the simulation that removed the thermal stops. On a real machine the same loop would need the machine's own limits and safety rules.
 9. **Why OPC UA and MQTT both?** OPC UA for typed asset access and commands, MQTT for cheap fan-out to consumers.
 10. **How did you test OPC UA and MQTT?** A real asyncua client talks to the real server over TCP. The MQTT tests use a live Mosquitto broker and skip if none is running.
-11. **How many tests?** 45 collected, 45 passed. They include FK and IK checks, the thermal model, the gateway derating write-back and the OPC UA server.
+11. **How many tests?** 46 collected, 46 passed with a Mosquitto broker running. Two of them skip when no broker is up. They include FK and IK checks, the thermal model, the gateway derating write-back and the OPC UA server.
 12. **What would change for real hardware?** Replace the bridge node with the machine's real OPC UA endpoint and map its node names. The gateway and AAS code stay the same. Add authentication and subscriptions.
