@@ -19,7 +19,7 @@ from std_msgs.msg import Float32, Int32, String
 
 from aas_digital_twin.opcua.server import AssetOpcUaServer
 
-ARM_JOINT_NAMES = ["joint1_base_yaw", "joint2_shoulder_pitch", "joint3_elbow_pitch"]
+ARM_JOINT_NAMES = [f"fr3_joint{i}" for i in range(1, 8)]
 
 
 class OpcUaBridgeNode(Node):

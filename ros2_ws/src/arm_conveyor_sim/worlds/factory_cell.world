@@ -1,11 +1,153 @@
 <?xml version="1.0"?>
+<!-- Generated cell layout. Coordinates match asset/fr3_kinematics.py (arm base at the origin). -->
 <sdf version="1.6">
   <world name="factory_cell">
-    <include><uri>model://ground_plane</uri></include>
     <include><uri>model://sun</uri></include>
+    <model name="floor"><static>true</static><pose>0 0 -0.75 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry></collision>
+        <visual name="v"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><ambient>0.82 0.83 0.85 1</ambient><diffuse>0.82 0.83 0.85 1</diffuse></material></visual></link></model>
     <physics type="ode">
-      <real_time_update_rate>1000.0</real_time_update_rate>
-      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>500.0</real_time_update_rate>
+      <max_step_size>0.002</max_step_size>
     </physics>
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros><namespace>/gz</namespace></ros>
+      <update_rate>10.0</update_rate>
+    </plugin>
+    <gui>
+      <camera name="user_camera"><pose>1.9 -1.5 1.25 0 0.43 2.2</pose></camera>
+    </gui>
+
+    <model name='table_top'><static>true</static><pose>0.35 0 -0.025 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>1.9 1.9 0.05</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>1.9 1.9 0.05</size></box></geometry>
+          <material><ambient>0.55 0.57 0.6 1</ambient><diffuse>0.55 0.57 0.6 1</diffuse></material></visual>
+      </link></model>
+    <model name='table_leg_0'><static>true</static><pose>-0.55 -0.85 -0.4 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.06 0.06 0.75</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.06 0.06 0.75</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material></visual>
+      </link></model>
+    <model name='table_leg_1'><static>true</static><pose>-0.55 0.85 -0.4 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.06 0.06 0.75</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.06 0.06 0.75</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material></visual>
+      </link></model>
+    <model name='table_leg_2'><static>true</static><pose>1.25 -0.85 -0.4 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.06 0.06 0.75</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.06 0.06 0.75</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material></visual>
+      </link></model>
+    <model name='table_leg_3'><static>true</static><pose>1.25 0.85 -0.4 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.06 0.06 0.75</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.06 0.06 0.75</size></box></geometry>
+          <material><ambient>0.3 0.3 0.32 1</ambient><diffuse>0.3 0.3 0.32 1</diffuse></material></visual>
+      </link></model>
+    <model name='conveyor_bed'><static>true</static><pose>0.5 0 0.055 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.30 1.7 0.11</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.30 1.7 0.11</size></box></geometry>
+          <material><ambient>0.18 0.18 0.2 1</ambient><diffuse>0.18 0.18 0.2 1</diffuse></material></visual>
+      </link></model>
+    <model name='conveyor_belt'><static>true</static><pose>0.5 0 0.115 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 1.66 0.01</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 1.66 0.01</size></box></geometry>
+          <material><ambient>0.08 0.08 0.09 1</ambient><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+      </link></model>
+    <model name='rail_left'><static>true</static><pose>0.355 0 0.135 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 1.7 0.05</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 1.7 0.05</size></box></geometry>
+          <material><ambient>0.75 0.75 0.78 1</ambient><diffuse>0.75 0.75 0.78 1</diffuse></material></visual>
+      </link></model>
+    <model name='rail_right'><static>true</static><pose>0.645 0 0.135 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 1.7 0.05</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 1.7 0.05</size></box></geometry>
+          <material><ambient>0.75 0.75 0.78 1</ambient><diffuse>0.75 0.75 0.78 1</diffuse></material></visual>
+      </link></model>
+    <model name='stopper'><static>true</static><pose>0.5 0.045 0.14 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.01 0.04</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.01 0.04</size></box></geometry>
+          <material><ambient>0.9 0.2 0.1 1</ambient><diffuse>0.9 0.2 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='good_bin_floor'><static>true</static><pose>0.0 0.5 0.01 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.24 0.02</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.24 0.02</size></box></geometry>
+          <material><ambient>0.15 0.6 0.25 1</ambient><diffuse>0.15 0.6 0.25 1</diffuse></material></visual>
+      </link></model>
+    <model name='good_bin_w1'><static>true</static><pose>0.11 0.5 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 0.24 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 0.24 0.12</size></box></geometry>
+          <material><ambient>0.15 0.6 0.25 1</ambient><diffuse>0.15 0.6 0.25 1</diffuse></material></visual>
+      </link></model>
+    <model name='good_bin_w2'><static>true</static><pose>-0.11 0.5 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 0.24 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 0.24 0.12</size></box></geometry>
+          <material><ambient>0.15 0.6 0.25 1</ambient><diffuse>0.15 0.6 0.25 1</diffuse></material></visual>
+      </link></model>
+    <model name='good_bin_w3'><static>true</static><pose>0.0 0.61 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.02 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.02 0.12</size></box></geometry>
+          <material><ambient>0.15 0.6 0.25 1</ambient><diffuse>0.15 0.6 0.25 1</diffuse></material></visual>
+      </link></model>
+    <model name='good_bin_w4'><static>true</static><pose>0.0 0.39 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.02 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.02 0.12</size></box></geometry>
+          <material><ambient>0.15 0.6 0.25 1</ambient><diffuse>0.15 0.6 0.25 1</diffuse></material></visual>
+      </link></model>
+    <model name='reject_bin_floor'><static>true</static><pose>0.0 -0.5 0.01 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.24 0.02</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.24 0.02</size></box></geometry>
+          <material><ambient>0.75 0.15 0.15 1</ambient><diffuse>0.75 0.15 0.15 1</diffuse></material></visual>
+      </link></model>
+    <model name='reject_bin_w1'><static>true</static><pose>0.11 -0.5 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 0.24 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 0.24 0.12</size></box></geometry>
+          <material><ambient>0.75 0.15 0.15 1</ambient><diffuse>0.75 0.15 0.15 1</diffuse></material></visual>
+      </link></model>
+    <model name='reject_bin_w2'><static>true</static><pose>-0.11 -0.5 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.02 0.24 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.02 0.24 0.12</size></box></geometry>
+          <material><ambient>0.75 0.15 0.15 1</ambient><diffuse>0.75 0.15 0.15 1</diffuse></material></visual>
+      </link></model>
+    <model name='reject_bin_w3'><static>true</static><pose>0.0 -0.39 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.02 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.02 0.12</size></box></geometry>
+          <material><ambient>0.75 0.15 0.15 1</ambient><diffuse>0.75 0.15 0.15 1</diffuse></material></visual>
+      </link></model>
+    <model name='reject_bin_w4'><static>true</static><pose>0.0 -0.61 0.07 0 0 0</pose>
+      <link name='l'><collision name='c'><geometry><box><size>0.24 0.02 0.12</size></box></geometry></collision>
+        <visual name='v'><geometry><box><size>0.24 0.02 0.12</size></box></geometry>
+          <material><ambient>0.75 0.15 0.15 1</ambient><diffuse>0.75 0.15 0.15 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_0'><static>false</static><pose>0.5 -0.75 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_1'><static>false</static><pose>0.5 -0.85 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_2'><static>false</static><pose>0.5 -0.95 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_3'><static>false</static><pose>0.5 -1.05 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_4'><static>false</static><pose>0.5 -1.15 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
+    <model name='part_5'><static>false</static><pose>0.5 -1.25 0.14 0 0 0</pose>
+      <link name='l'><gravity>false</gravity><kinematic>true</kinematic>
+        <visual name='v'><geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material><ambient>0.95 0.75 0.1 1</ambient><diffuse>0.95 0.75 0.1 1</diffuse></material></visual>
+      </link></model>
   </world>
 </sdf>

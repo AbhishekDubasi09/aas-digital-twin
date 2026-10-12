@@ -19,6 +19,7 @@ from aas_digital_twin.gateway.bridge import (
 )
 
 MAX_POINTS = 300
+JOINT_COUNT = 7  # Franka Research 3
 
 
 @dataclass
@@ -26,9 +27,9 @@ class TelemetryBuffer:
     """Fixed-length rolling history of operational state and OEE values."""
 
     timestamps_op: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    joint1: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    joint2: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    joint3: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
+    joints: list[deque] = field(
+        default_factory=lambda: [deque(maxlen=MAX_POINTS) for _ in range(JOINT_COUNT)]
+    )
     temperature: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
 
     timestamps_oee: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
@@ -42,9 +43,8 @@ class TelemetryBuffer:
         data = json.loads(payload)
         if topic == MQTT_TOPIC_OPERATIONAL_STATE:
             self.timestamps_op.append(timestamp_s)
-            self.joint1.append(data.get("Joint1PositionRad", 0.0))
-            self.joint2.append(data.get("Joint2PositionRad", 0.0))
-            self.joint3.append(data.get("Joint3PositionRad", 0.0))
+            for i, series in enumerate(self.joints, start=1):
+                series.append(data.get(f"Joint{i}PositionRad", 0.0))
             self.temperature.append(data.get("TemperatureCelsius", 0.0))
         elif topic == MQTT_TOPIC_CONDITION_MONITORING:
             self.timestamps_oee.append(timestamp_s)
@@ -80,10 +80,9 @@ def run_live_dashboard(mqtt_host: str = "localhost", mqtt_port: int = 1883) -> N
     def update(_frame: int) -> Sequence:
         ax_joints.clear()
         ax_joints.set_title("Joint positions (rad)")
-        ax_joints.plot(buffer.timestamps_op, buffer.joint1, label="Joint 1")
-        ax_joints.plot(buffer.timestamps_op, buffer.joint2, label="Joint 2")
-        ax_joints.plot(buffer.timestamps_op, buffer.joint3, label="Joint 3")
-        ax_joints.legend(loc="upper right")
+        for i, series in enumerate(buffer.joints, start=1):
+            ax_joints.plot(buffer.timestamps_op, series, label=f"J{i}")
+        ax_joints.legend(loc="upper right", ncol=7, fontsize=8)
         ax_joints.set_xlabel("time (s)")
 
         ax_oee.clear()

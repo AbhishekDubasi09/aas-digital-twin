@@ -25,7 +25,7 @@ def build_nameplate_submodel() -> model.Submodel:
         id_short="Nameplate",
         submodel_element={
             _prop("ManufacturerName", "aas-digital-twin project", model.datatypes.String),
-            _prop("ManufacturerProductDesignation", "SimArm-3DOF", model.datatypes.String),
+            _prop("ManufacturerProductDesignation", "Franka Research 3 (simulated)", model.datatypes.String),
             _prop("SerialNumber", "SIM-0001", model.datatypes.String),
             _prop("YearOfConstruction", "2026", model.datatypes.String),
             _prop("CountryOfOrigin", "Simulated", model.datatypes.String),
@@ -39,11 +39,11 @@ def build_technical_data_submodel() -> model.Submodel:
         id_=f"{NAMESPACE}/submodels/TechnicalData",
         id_short="TechnicalData",
         submodel_element={
-            _prop("DegreesOfFreedom", 3, model.datatypes.Int),
-            _prop("MaxPayloadKg", 2.0, model.datatypes.Double),
-            _prop("ReachMeters", 0.65, model.datatypes.Double),
-            _prop("MaxJointVelocityRadPerS", 2.0, model.datatypes.Double),
-            _prop("ConveyorLengthMeters", 1.2, model.datatypes.Double),
+            _prop("DegreesOfFreedom", 7, model.datatypes.Int),
+            _prop("MaxPayloadKg", 3.0, model.datatypes.Double),
+            _prop("ReachMeters", 0.855, model.datatypes.Double),
+            _prop("MaxJointVelocityRadPerS", 2.62, model.datatypes.Double),
+            _prop("ConveyorLengthMeters", 1.7, model.datatypes.Double),
         },
     )
 
@@ -61,6 +61,10 @@ def build_operational_state_submodel() -> model.Submodel:
             _prop("Joint1PositionRad", 0.0, model.datatypes.Double),
             _prop("Joint2PositionRad", 0.0, model.datatypes.Double),
             _prop("Joint3PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint4PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint5PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint6PositionRad", 0.0, model.datatypes.Double),
+            _prop("Joint7PositionRad", 0.0, model.datatypes.Double),
             _prop("ConveyorSpeedMPerS", 0.0, model.datatypes.Double),
             _prop("TemperatureCelsius", 0.0, model.datatypes.Double),
             _prop("CycleState", "IDLE", model.datatypes.String),
@@ -92,11 +96,11 @@ def build_asset_shell(submodels: list[model.Submodel]) -> model.AssetAdministrat
     """Build the AAS shell referencing all four submodels."""
     asset_information = model.AssetInformation(
         asset_kind=model.AssetKind.INSTANCE,
-        global_asset_id=f"{NAMESPACE}/assets/SimArm-3DOF-0001",
+        global_asset_id=f"{NAMESPACE}/assets/FR3-SIM-0001",
     )
     return model.AssetAdministrationShell(
-        id_=f"{NAMESPACE}/shells/SimArm-3DOF-0001",
-        id_short="SimArm3DofShell",
+        id_=f"{NAMESPACE}/shells/FR3-SIM-0001",
+        id_short="Fr3CellShell",
         asset_information=asset_information,
         submodel={model.ModelReference.from_referable(sm) for sm in submodels},
     )

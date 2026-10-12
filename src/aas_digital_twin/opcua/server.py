@@ -14,6 +14,7 @@ from asyncua import Server, ua
 from asyncua.common.node import Node
 
 NAMESPACE_URI = "http://aas-digital-twin/opcua/"
+JOINT_COUNT = 7  # Franka Research 3
 
 
 @dataclass
@@ -29,12 +30,12 @@ class AssetCellNodes:
 
 
 class AssetOpcUaServer:
-    """OPC UA server for the simulated 3-DOF arm + conveyor asset cell.
+    """OPC UA server for the simulated Franka Research 3 arm + conveyor cell.
 
     Usage:
         server = AssetOpcUaServer(endpoint="opc.tcp://0.0.0.0:4840/aas-twin/")
         await server.start()
-        await server.update_joint_positions([0.1, 0.2, 0.3])
+        await server.update_joint_positions([0.0] * JOINT_COUNT)
         ...
         await server.stop()
     """
@@ -55,7 +56,7 @@ class AssetOpcUaServer:
         objects = self._server.nodes.objects
         asset_cell = await objects.add_object(idx, "AssetCell")
 
-        for i in range(1, 4):
+        for i in range(1, JOINT_COUNT + 1):
             node = await asset_cell.add_variable(idx, f"Joint{i}Position", 0.0)
             await node.set_writable()
             self._nodes.joint_positions.append(node)
@@ -89,7 +90,7 @@ class AssetOpcUaServer:
 
     async def update_joint_positions(self, positions: list[float]) -> None:
         """Write the current joint positions (radians) to the address space."""
-        for node, value in zip(self._nodes.joint_positions, positions, strict=True):
+        for node, value in zip(self._nodes.joint_positions, positions, strict=False):
             await node.write_value(float(value))
 
     async def update_conveyor_speed(self, speed_mps: float) -> None:

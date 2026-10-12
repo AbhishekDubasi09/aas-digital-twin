@@ -84,7 +84,7 @@ def test_rest_api_lists_shell_and_submodels() -> None:
     assert shells_resp.status_code == 200
     shells = shells_resp.get_json()["result"]
     assert len(shells) == 1
-    assert shells[0]["idShort"] == "SimArm3DofShell"
+    assert shells[0]["idShort"] == "Fr3CellShell"
 
     submodels_resp = client.get("/api/v3.0/submodels")
     assert submodels_resp.status_code == 200

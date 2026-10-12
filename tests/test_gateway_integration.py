@@ -27,7 +27,7 @@ async def mock_asset_server() -> AsyncIterator[AssetOpcUaServer]:
 async def test_gateway_propagates_opcua_values_into_aas_and_mqtt(
     mock_asset_server: AssetOpcUaServer,
 ) -> None:
-    await mock_asset_server.update_joint_positions([0.2, -0.4, 0.9])
+    await mock_asset_server.update_joint_positions([0.2, -0.4, 0.9, -2.1, 0.0, 1.8, 0.7])
     await mock_asset_server.update_conveyor_speed(0.15)
     await mock_asset_server.update_temperature(38.2)
     await mock_asset_server.update_cycle_state("RUNNING")
@@ -46,6 +46,7 @@ async def test_gateway_propagates_opcua_values_into_aas_and_mqtt(
     assert operational_state.get_referable("Joint1PositionRad").value == pytest.approx(0.2)
     assert operational_state.get_referable("Joint2PositionRad").value == pytest.approx(-0.4)
     assert operational_state.get_referable("Joint3PositionRad").value == pytest.approx(0.9)
+    assert operational_state.get_referable("Joint7PositionRad").value == pytest.approx(0.7)
     assert operational_state.get_referable("ConveyorSpeedMPerS").value == pytest.approx(0.15)
     assert operational_state.get_referable("TemperatureCelsius").value == pytest.approx(38.2)
     assert operational_state.get_referable("CycleState").value == "RUNNING"

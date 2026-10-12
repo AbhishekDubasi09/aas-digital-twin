@@ -3,7 +3,7 @@
 <package format="3">
   <name>arm_conveyor_sim</name>
   <version>0.1.0</version>
-  <description>3-DOF arm and conveyor Gazebo simulation for the aas-digital-twin project</description>
+  <description>Franka Research 3 pick-and-place cell with conveyor for the aas-digital-twin project</description>
   <maintainer email="abhibunny123456789@gmail.com">Abhishek</maintainer>
   <license>MIT</license>
 
@@ -12,6 +12,9 @@
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>gazebo_ros_pkgs</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>franka_description</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>gazebo_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>trajectory_msgs</exec_depend>

@@ -1,6 +1,7 @@
 """Fixed-duration demo: asset sim -> OPC UA -> AAS -> MQTT -> logged OEE plot.
 
-Runs a lightweight in-process duty-cycle simulator (the same RUNNING/DOWN
+Runs a lightweight in-process duty-cycle simulator that replays the real FR3
+pick-and-place joint path (the same RUNNING/DOWN
 fault-cycling logic as the ROS2 cycle_manager node, see
 ros2_ws/src/arm_conveyor_sim/scripts/cycle_manager.py) writing into a real
 OPC UA server, polls it through the real Gateway into AAS submodels and
@@ -23,6 +24,7 @@ from pathlib import Path
 from asyncua import Client
 
 from aas_digital_twin.aas.api import build_object_store
+from aas_digital_twin.asset.fr3_kinematics import pick_and_place_waypoints
 from aas_digital_twin.gateway.bridge import Gateway, make_paho_publisher
 from aas_digital_twin.opcua.server import AssetOpcUaServer
 
@@ -58,14 +60,13 @@ async def _run_asset_simulator(server: AssetOpcUaServer, stop_event: asyncio.Eve
                 await asyncio.sleep(0.5)
                 continue
 
-        for i in range(5):
-            frac = (i + 1) / 5
-            await server.update_joint_positions(
-                [0.6 * math.sin(frac * math.pi), -0.6 * frac, 1.0 * frac]
-            )
-            await asyncio.sleep(CYCLE_TIME_S / 5 / 4)  # sped up for a short demo
+        scrap = random.random() < SCRAP_PROBABILITY_PER_CYCLE
+        plan = pick_and_place_waypoints(scrap)
+        for _, q, _ in plan[1:]:
+            await server.update_joint_positions([float(v) for v in q])
+            await asyncio.sleep(CYCLE_TIME_S / len(plan) / 4)  # sped up for a short demo
         cycle_count += 1
-        if random.random() > SCRAP_PROBABILITY_PER_CYCLE:
+        if not scrap:
             good_count += 1
         await server.update_counts(cycle_count, good_count)
         await server.update_conveyor_speed(CONVEYOR_SPEED_MPS)

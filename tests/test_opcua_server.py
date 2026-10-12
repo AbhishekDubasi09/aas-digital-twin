@@ -24,7 +24,7 @@ async def running_server() -> AsyncIterator[AssetOpcUaServer]:
 
 async def test_server_exposes_initial_zero_state(running_server: AssetOpcUaServer) -> None:
     state = await running_server.read_all()
-    assert state["joint_positions"] == [0.0, 0.0, 0.0]
+    assert state["joint_positions"] == [0.0] * 7
     assert state["conveyor_speed"] == 0.0
     assert state["cycle_state"] == "IDLE"
     assert state["cycle_count"] == 0
@@ -33,9 +33,10 @@ async def test_server_exposes_initial_zero_state(running_server: AssetOpcUaServe
 async def test_update_joint_positions_is_readable_back(
     running_server: AssetOpcUaServer,
 ) -> None:
-    await running_server.update_joint_positions([0.5, -0.3, 1.1])
+    pose = [0.5, -0.3, 1.1, -2.0, 0.1, 1.9, 0.8]
+    await running_server.update_joint_positions(pose)
     state = await running_server.read_all()
-    assert state["joint_positions"] == pytest.approx([0.5, -0.3, 1.1])
+    assert state["joint_positions"] == pytest.approx(pose)
 
 
 async def test_update_cycle_state_and_counts(running_server: AssetOpcUaServer) -> None:

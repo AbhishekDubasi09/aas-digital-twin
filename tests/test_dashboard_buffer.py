@@ -28,9 +28,9 @@ def test_ingest_operational_state_appends_joint_and_temperature_values() -> None
     buffer.ingest(MQTT_TOPIC_OPERATIONAL_STATE, payload, timestamp_s=1.0)
 
     assert list(buffer.timestamps_op) == [1.0]
-    assert list(buffer.joint1) == [0.1]
-    assert list(buffer.joint2) == [0.2]
-    assert list(buffer.joint3) == [0.3]
+    assert list(buffer.joints[0]) == [0.1]
+    assert list(buffer.joints[1]) == [0.2]
+    assert list(buffer.joints[2]) == [0.3]
     assert list(buffer.temperature) == [36.5]
 
 
@@ -71,4 +71,4 @@ def test_buffer_is_bounded_at_max_points() -> None:
             timestamp_s=float(i),
         )
     assert len(buffer.timestamps_op) == 300
-    assert buffer.joint1[-1] == 399.0
+    assert buffer.joints[0][-1] == 399.0
