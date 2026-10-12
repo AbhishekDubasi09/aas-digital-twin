@@ -25,7 +25,11 @@ def build_nameplate_submodel() -> model.Submodel:
         id_short="Nameplate",
         submodel_element={
             _prop("ManufacturerName", "aas-digital-twin project", model.datatypes.String),
-            _prop("ManufacturerProductDesignation", "Franka Research 3 (simulated)", model.datatypes.String),
+            _prop(
+                "ManufacturerProductDesignation",
+                "Franka Research 3 (simulated)",
+                model.datatypes.String,
+            ),
             _prop("SerialNumber", "SIM-0001", model.datatypes.String),
             _prop("YearOfConstruction", "2026", model.datatypes.String),
             _prop("CountryOfOrigin", "Simulated", model.datatypes.String),
@@ -88,6 +92,8 @@ def build_condition_monitoring_submodel() -> model.Submodel:
             _prop("OEE", 0.0, model.datatypes.Double),
             _prop("TotalCycleCount", 0, model.datatypes.Int),
             _prop("GoodCycleCount", 0, model.datatypes.Int),
+            _prop("SpeedScale", 1.0, model.datatypes.Double),
+            _prop("ActiveAlarm", "NONE", model.datatypes.String),
         },
     )
 

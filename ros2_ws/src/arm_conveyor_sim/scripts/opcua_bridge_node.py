@@ -32,6 +32,9 @@ class OpcUaBridgeNode(Node):
         self._cycle_count = 0
         self._good_count = 0
 
+        self._scale_pub = self.create_publisher(
+            Float32, "/arm_conveyor/command/speed_scale", 10
+        )
         self.create_subscription(
             JointState, "/arm_conveyor/joint_states", self._on_joint_states, 10
         )
@@ -48,6 +51,9 @@ class OpcUaBridgeNode(Node):
         self.create_subscription(
             Int32, "/arm_conveyor/telemetry/good_count", self._on_good_count, 10
         )
+
+    def publish_speed_scale(self, value: float) -> None:
+        self._scale_pub.publish(Float32(data=float(value)))
 
     def _schedule(self, coro) -> None:
         asyncio.run_coroutine_threadsafe(coro, self._loop)
@@ -95,7 +101,8 @@ def main() -> None:
         ros_thread.start()
         try:
             while ros_thread.is_alive():
-                await asyncio.sleep(0.5)
+                node.publish_speed_scale(await opcua_server.read_speed_scale())
+                await asyncio.sleep(0.2)
         finally:
             await opcua_server.stop()
             node.destroy_node()

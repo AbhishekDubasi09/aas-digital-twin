@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from aas_digital_twin.dashboard.live_dashboard import TelemetryBuffer
+from aas_digital_twin.dashboard.live_dashboard import MAX_POINTS, TelemetryBuffer
 from aas_digital_twin.gateway.bridge import (
     MQTT_TOPIC_CONDITION_MONITORING,
     MQTT_TOPIC_OPERATIONAL_STATE,
@@ -64,11 +64,11 @@ def test_ingest_ignores_unknown_topics() -> None:
 
 def test_buffer_is_bounded_at_max_points() -> None:
     buffer = TelemetryBuffer()
-    for i in range(400):
+    for i in range(MAX_POINTS + 100):
         buffer.ingest(
             MQTT_TOPIC_OPERATIONAL_STATE,
             json.dumps({"Joint1PositionRad": float(i)}),
             timestamp_s=float(i),
         )
-    assert len(buffer.timestamps_op) == 300
-    assert buffer.joints[0][-1] == 399.0
+    assert len(buffer.timestamps_op) == MAX_POINTS
+    assert buffer.joints[0][-1] == float(MAX_POINTS + 99)

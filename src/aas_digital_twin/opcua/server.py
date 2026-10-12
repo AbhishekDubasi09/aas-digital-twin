@@ -27,6 +27,7 @@ class AssetCellNodes:
     cycle_state: Node | None = None
     cycle_count: Node | None = None
     good_count: Node | None = None
+    speed_scale: Node | None = None
 
 
 class AssetOpcUaServer:
@@ -70,7 +71,10 @@ class AssetOpcUaServer:
         self._nodes.good_count = await asset_cell.add_variable(
             idx, "GoodCount", ua.Variant(0, ua.VariantType.Int32)
         )
+        # Written by the gateway (derating command), read by the asset side.
+        self._nodes.speed_scale = await asset_cell.add_variable(idx, "SpeedScale", 1.0)
         for node in (
+            self._nodes.speed_scale,
             self._nodes.conveyor_speed,
             self._nodes.temperature,
             self._nodes.cycle_state,
@@ -108,6 +112,11 @@ class AssetOpcUaServer:
         assert self._nodes.cycle_state is not None
         await self._nodes.cycle_state.write_value(state)
 
+    async def read_speed_scale(self) -> float:
+        """Read the speed scale command (1.0 = full speed)."""
+        assert self._nodes.speed_scale is not None
+        return float(await self._nodes.speed_scale.read_value())
+
     async def update_counts(self, cycle_count: int, good_count: int) -> None:
         """Write the cumulative attempted and good production counts."""
         assert self._nodes.cycle_count is not None
@@ -129,4 +138,5 @@ class AssetOpcUaServer:
             "cycle_state": await self._nodes.cycle_state.read_value(),
             "cycle_count": await self._nodes.cycle_count.read_value(),
             "good_count": await self._nodes.good_count.read_value(),
+            "speed_scale": await self.read_speed_scale(),
         }

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
 from typing import Any, Protocol
 
 from asyncua import Client
@@ -18,12 +17,14 @@ from asyncua.common.node import Node
 from basyx.aas import model
 
 from aas_digital_twin.aas.oee import compute_oee
+from aas_digital_twin.asset import thermal_model
 
-IDEAL_CYCLE_TIME_S = 4.0
-"""Matches CYCLE_TIME_S in the ROS2 cycle_manager node's waypoint sequence."""
+IDEAL_CYCLE_TIME_S = thermal_model.IDEAL_CYCLE_TIME_S
+"""Ideal seconds per cycle. The FR3 path takes 4.4 s, so Performance is about 0.91."""
 
 MQTT_TOPIC_OPERATIONAL_STATE = "aas-digital-twin/operational_state"
 MQTT_TOPIC_CONDITION_MONITORING = "aas-digital-twin/condition_monitoring"
+MQTT_TOPIC_ALERTS = "aas-digital-twin/alerts"
 
 
 class MqttPublisher(Protocol):
@@ -40,6 +41,7 @@ class Gateway:
         opcua_endpoint: str,
         object_store: model.DictObjectStore,
         publish: MqttPublisher,
+        mitigation: bool = True,
     ) -> None:
         """Create a gateway wired to a specific OPC UA endpoint and object store.
 
@@ -48,6 +50,7 @@ class Gateway:
             object_store: AAS object store containing OperationalState and
                 ConditionMonitoring submodels to update in place.
             publish: callable(topic, payload) used to send MQTT messages.
+            mitigation: if True, derate the cell when the temperature is high.
         """
         self._opcua_endpoint = opcua_endpoint
         self._operational_state = next(
@@ -57,6 +60,8 @@ class Gateway:
             sm for sm in object_store if sm.id_short == "ConditionMonitoring"
         )
         self._publish = publish
+        self._mitigation = mitigation
+        self._speed_scale = 1.0
 
         self._run_start_time = time.monotonic()
         self._downtime_accum_s = 0.0
@@ -79,6 +84,8 @@ class Gateway:
         if cycle_state == "DOWN":
             self._downtime_accum_s += elapsed_since_last_poll
 
+        if self._mitigation:
+            await self._apply_derating(children, float(values.get("Temperature", 0.0)))
         self._write_operational_state(values)
         oee_snapshot = self._recompute_condition_monitoring(values)
 
@@ -104,6 +111,27 @@ class Gateway:
                 i += 1
                 if max_iterations is None or i < max_iterations:
                     await asyncio.sleep(poll_interval_s)
+
+    async def _apply_derating(self, children: list[Node], temperature_c: float) -> None:
+        """Slow the cell down before the thermal trip zone, and restore speed later."""
+        new_scale = thermal_model.next_speed_scale(temperature_c, self._speed_scale)
+        if new_scale == self._speed_scale:
+            return
+        for child in children:
+            if (await child.read_browse_name()).Name == "SpeedScale":
+                await child.write_value(float(new_scale))
+        self._publish(
+            MQTT_TOPIC_ALERTS,
+            json.dumps(
+                {
+                    "alarm": "THERMAL_DERATING" if new_scale < 1.0 else "NONE",
+                    "temperature_c": round(temperature_c, 2),
+                    "speed_scale": new_scale,
+                    "action": "derate" if new_scale < 1.0 else "restore full speed",
+                }
+            ),
+        )
+        self._speed_scale = new_scale
 
     async def _get_asset_cell_node(self, opcua_client: Client) -> Node:
         objects = opcua_client.nodes.objects
@@ -149,6 +177,9 @@ class Gateway:
         self._condition_monitoring.get_referable("OEE").value = result.oee
         self._condition_monitoring.get_referable("TotalCycleCount").value = total_count
         self._condition_monitoring.get_referable("GoodCycleCount").value = good_count
+        alarm = "THERMAL_DERATING" if self._speed_scale < 1.0 else "NONE"
+        self._condition_monitoring.get_referable("SpeedScale").value = self._speed_scale
+        self._condition_monitoring.get_referable("ActiveAlarm").value = alarm
 
         return {
             "availability": result.availability,
@@ -157,6 +188,8 @@ class Gateway:
             "oee": result.oee,
             "total_cycle_count": total_count,
             "good_cycle_count": good_count,
+            "speed_scale": self._speed_scale,
+            "alarm": alarm,
         }
 
     @staticmethod
@@ -166,7 +199,7 @@ class Gateway:
         }
 
 
-def make_paho_publisher(host: str = "localhost", port: int = 1883) -> Callable[[str, str], None]:
+def make_paho_publisher(host: str = "localhost", port: int = 1883) -> MqttPublisher:
     """Build a real MQTT publish callable backed by paho-mqtt (Eclipse Mosquitto)."""
     import paho.mqtt.client as mqtt
 

@@ -1,16 +1,18 @@
 """Matplotlib dashboard subscribing to the gateway's MQTT telemetry topics.
 
 The MQTT message buffering logic (TelemetryBuffer) is pure and unit
-testable. The matplotlib animation loop around it is a thin, untested
-wrapper, since it requires a display and a live broker to exercise.
+testable. The drawing function is shared by two front ends: a live window
+(run_live_dashboard) and a recorder that renders the same figure to an MP4
+from real MQTT messages (record_dashboard).
 """
 
 from __future__ import annotations
 
 import json
+import time
 from collections import deque
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from aas_digital_twin.gateway.bridge import (
@@ -18,25 +20,32 @@ from aas_digital_twin.gateway.bridge import (
     MQTT_TOPIC_OPERATIONAL_STATE,
 )
 
-MAX_POINTS = 300
+MAX_POINTS = 600
 JOINT_COUNT = 7  # Franka Research 3
+
+
+def _series() -> deque:
+    return deque(maxlen=MAX_POINTS)
 
 
 @dataclass
 class TelemetryBuffer:
     """Fixed-length rolling history of operational state and OEE values."""
 
-    timestamps_op: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    joints: list[deque] = field(
-        default_factory=lambda: [deque(maxlen=MAX_POINTS) for _ in range(JOINT_COUNT)]
-    )
-    temperature: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
+    timestamps_op: deque = field(default_factory=_series)
+    joints: list[deque] = field(default_factory=lambda: [_series() for _ in range(JOINT_COUNT)])
+    temperature: deque = field(default_factory=_series)
+    states: deque = field(default_factory=_series)
 
-    timestamps_oee: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    oee: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    availability: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    performance: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
-    quality: deque = field(default_factory=lambda: deque(maxlen=MAX_POINTS))
+    timestamps_oee: deque = field(default_factory=_series)
+    oee: deque = field(default_factory=_series)
+    availability: deque = field(default_factory=_series)
+    performance: deque = field(default_factory=_series)
+    quality: deque = field(default_factory=_series)
+    total_cycles: deque = field(default_factory=_series)
+    good_cycles: deque = field(default_factory=_series)
+    speed_scale: deque = field(default_factory=_series)
+    alarm: deque = field(default_factory=_series)
 
     def ingest(self, topic: str, payload: str, timestamp_s: float) -> None:
         """Parse one MQTT message and append its values to the buffers."""
@@ -46,23 +55,75 @@ class TelemetryBuffer:
             for i, series in enumerate(self.joints, start=1):
                 series.append(data.get(f"Joint{i}PositionRad", 0.0))
             self.temperature.append(data.get("TemperatureCelsius", 0.0))
+            self.states.append(data.get("CycleState", "IDLE"))
         elif topic == MQTT_TOPIC_CONDITION_MONITORING:
             self.timestamps_oee.append(timestamp_s)
             self.oee.append(data.get("oee", 0.0))
             self.availability.append(data.get("availability", 0.0))
             self.performance.append(data.get("performance", 0.0))
             self.quality.append(data.get("quality", 0.0))
+            self.total_cycles.append(data.get("total_cycle_count", 0))
+            self.good_cycles.append(data.get("good_cycle_count", 0))
+            self.speed_scale.append(data.get("speed_scale", 1.0))
+            self.alarm.append(data.get("alarm", "NONE"))
 
 
-def run_live_dashboard(mqtt_host: str = "localhost", mqtt_port: int = 1883) -> None:
-    """Open a live matplotlib window plotting joint positions and OEE over MQTT."""
-    import time
+def draw_dashboard(fig: Any, buffer: TelemetryBuffer) -> None:
+    """Redraw the three dashboard panels from the buffer."""
+    fig.clear()
+    ax_oee, ax_joints, ax_temp = fig.subplots(3, 1, gridspec_kw={"height_ratios": [3, 2, 1.4]})
 
-    import matplotlib.pyplot as plt
+    t_oee = list(buffer.timestamps_oee)
+    ax_oee.plot(t_oee, list(buffer.oee), color="black", linewidth=2.4, label="OEE")
+    ax_oee.plot(t_oee, list(buffer.availability), alpha=0.8, label="Availability")
+    ax_oee.plot(t_oee, list(buffer.performance), alpha=0.8, label="Performance")
+    ax_oee.plot(t_oee, list(buffer.quality), alpha=0.8, label="Quality")
+    ax_oee.set_ylim(0, 1.05)
+    ax_oee.legend(loc="lower left", ncol=4, fontsize=8)
+    latest = ""
+    if buffer.oee:
+        latest = (
+            f"   OEE {buffer.oee[-1]:.2f}   A {buffer.availability[-1]:.2f}"
+            f"   P {buffer.performance[-1]:.2f}   Q {buffer.quality[-1]:.2f}"
+            f"   cycles {buffer.total_cycles[-1]}   good {buffer.good_cycles[-1]}"
+        )
+    ax_oee.set_title("Overall Equipment Effectiveness" + latest, fontsize=10, loc="left")
+
+    t_op = list(buffer.timestamps_op)
+    for i, series in enumerate(buffer.joints, start=1):
+        ax_joints.plot(t_op, list(series), label=f"J{i}", linewidth=1.2)
+    ax_joints.legend(loc="upper right", ncol=7, fontsize=7)
+    ax_joints.set_title("FR3 joint positions (rad)", fontsize=10, loc="left")
+
+    ax_temp.plot(t_op, list(buffer.temperature), color="tab:orange")
+    ax_temp.axhline(38.0, color="tab:red", linestyle="--", linewidth=0.8)
+    ax_temp.axhline(34.0, color="tab:green", linestyle="--", linewidth=0.8)
+    ax_temp.text(0.01, 0.82, "derate at 38", transform=ax_temp.transAxes, fontsize=7)
+    states = list(buffer.states)
+    start = None
+    for ti, st in zip(t_op, states, strict=False):
+        if st == "DOWN" and start is None:
+            start = ti
+        if st != "DOWN" and start is not None:
+            ax_temp.axvspan(start, ti, color="tab:red", alpha=0.2)
+            start = None
+    if start is not None and t_op:
+        ax_temp.axvspan(start, t_op[-1], color="tab:red", alpha=0.2)
+    now_state = states[-1] if states else "-"
+    alarm = buffer.alarm[-1] if buffer.alarm else "-"
+    scale = buffer.speed_scale[-1] if buffer.speed_scale else 1.0
+    ax_temp.set_title(
+        f"Temperature (C), red band = DOWN.  State {now_state}   speed {scale:.1f}   alarm {alarm}",
+        fontsize=10,
+        loc="left",
+    )
+    ax_temp.set_xlabel("time (s)")
+    fig.tight_layout()
+
+
+def _subscribe(buffer: TelemetryBuffer, mqtt_host: str, mqtt_port: int) -> Any:
     import paho.mqtt.client as mqtt
-    from matplotlib.animation import FuncAnimation
 
-    buffer = TelemetryBuffer()
     start_time = time.monotonic()
 
     def on_message(_client: Any, _userdata: Any, msg: Any) -> None:
@@ -74,34 +135,74 @@ def run_live_dashboard(mqtt_host: str = "localhost", mqtt_port: int = 1883) -> N
     client.subscribe(MQTT_TOPIC_OPERATIONAL_STATE)
     client.subscribe(MQTT_TOPIC_CONDITION_MONITORING)
     client.loop_start()
+    return client
 
-    fig, (ax_joints, ax_oee) = plt.subplots(2, 1, figsize=(9, 7))
 
-    def update(_frame: int) -> Sequence:
-        ax_joints.clear()
-        ax_joints.set_title("Joint positions (rad)")
-        for i, series in enumerate(buffer.joints, start=1):
-            ax_joints.plot(buffer.timestamps_op, series, label=f"J{i}")
-        ax_joints.legend(loc="upper right", ncol=7, fontsize=8)
-        ax_joints.set_xlabel("time (s)")
+def run_live_dashboard(mqtt_host: str = "localhost", mqtt_port: int = 1883) -> None:
+    """Open a live matplotlib window fed by MQTT."""
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
 
-        ax_oee.clear()
-        ax_oee.set_title("OEE and components")
-        ax_oee.plot(buffer.timestamps_oee, buffer.oee, label="OEE", linewidth=2)
-        ax_oee.plot(buffer.timestamps_oee, buffer.availability, label="Availability", alpha=0.6)
-        ax_oee.plot(buffer.timestamps_oee, buffer.performance, label="Performance", alpha=0.6)
-        ax_oee.plot(buffer.timestamps_oee, buffer.quality, label="Quality", alpha=0.6)
-        ax_oee.set_ylim(0, 1.05)
-        ax_oee.legend(loc="lower right")
-        ax_oee.set_xlabel("time (s)")
+    buffer = TelemetryBuffer()
+    client = _subscribe(buffer, mqtt_host, mqtt_port)
+    fig = plt.figure(figsize=(10, 7.5))
 
-        fig.tight_layout()
-        return ()
+    def _update(_frame: int) -> list[Any]:
+        draw_dashboard(fig, buffer)
+        return []
 
-    _anim = FuncAnimation(fig, update, interval=1000, cache_frame_data=False)
+    _anim = FuncAnimation(fig, _update, interval=1000, cache_frame_data=False)
     plt.show()
     client.loop_stop()
 
 
+def record_dashboard(
+    out_mp4: Path,
+    out_png: Path,
+    duration_s: float,
+    fps: int = 4,
+    mqtt_host: str = "localhost",
+    mqtt_port: int = 1883,
+) -> None:
+    """Render the dashboard to an MP4 from live MQTT data for duration_s seconds."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FFMpegWriter
+
+    buffer = TelemetryBuffer()
+    client = _subscribe(buffer, mqtt_host, mqtt_port)
+    fig = plt.figure(figsize=(12.8, 7.2), dpi=100)
+    writer = FFMpegWriter(fps=fps, codec="libx264", extra_args=["-pix_fmt", "yuv420p"])
+    t0 = time.monotonic()
+    frame = 0
+    with writer.saving(fig, str(out_mp4), dpi=100):
+        while time.monotonic() - t0 < duration_s:
+            draw_dashboard(fig, buffer)
+            writer.grab_frame()
+            frame += 1
+            time.sleep(max(0.0, t0 + frame / fps - time.monotonic()))
+    draw_dashboard(fig, buffer)
+    fig.savefig(out_png, dpi=100)
+    plt.close(fig)
+    client.loop_stop()
+
+
+def main() -> None:
+    """CLI entry point: live window, or --record to write an MP4."""
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--record", type=float, default=0.0, help="seconds to record to MP4")
+    parser.add_argument("--out-mp4", type=Path, default=Path("docs/media/dashboard_live.mp4"))
+    parser.add_argument("--out-png", type=Path, default=Path("docs/media/dashboard_live.png"))
+    args = parser.parse_args()
+    if args.record > 0:
+        record_dashboard(args.out_mp4, args.out_png, args.record)
+    else:
+        run_live_dashboard()
+
+
 if __name__ == "__main__":
-    run_live_dashboard()
+    main()

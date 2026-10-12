@@ -6,16 +6,19 @@ real pick, carry and place path (joint targets from asset/fr3_kinematics.py),
 feeds parts along the conveyor, and publishes the telemetry that the OPC UA,
 AAS and OEE layers consume.
 
-Duty cycle: two states, RUNNING and DOWN. After every finished cycle the
-node rolls a fault with DOWN_PROBABILITY_PER_CYCLE. A DOWN period lasts a
-random time in DOWN_DURATION_RANGE_S, during which the arm holds still and
-the belt stops. Each cycle is scrap with SCRAP_PROBABILITY_PER_CYCLE. Scrap
-parts go to the red bin, good parts to the green bin.
+Duty cycle: two states, RUNNING and DOWN. The arm heats while it works (see
+asset/thermal_model.py). After every finished cycle the node rolls two
+faults. A thermal protective stop becomes more likely above 40 C and lasts
+20 to 40 s. A random fault has a small fixed probability and lasts 3 to 10 s.
+During DOWN the arm holds still and the belt stops. The gateway can slow the
+cell down by writing a speed scale, which reaches this node on
+/arm_conveyor/command/speed_scale. Each cycle is scrap with probability
+SCRAP_PROBABILITY_PER_CYCLE. Scrap parts go to the red bin, good parts to the
+green bin.
 """
 
 from __future__ import annotations
 
-import math
 import random
 import time
 
@@ -27,10 +30,9 @@ from std_msgs.msg import Float32, Int32, String
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from aas_digital_twin.asset import fr3_kinematics as kin
+from aas_digital_twin.asset import thermal_model as tm
 
-DOWN_PROBABILITY_PER_CYCLE = 0.08
-DOWN_DURATION_RANGE_S = (3.0, 10.0)
-SCRAP_PROBABILITY_PER_CYCLE = 0.05
+SCRAP_PROBABILITY_PER_CYCLE = tm.SCRAP_PROBABILITY_PER_CYCLE
 CONVEYOR_SPEED_MPS = 0.15
 
 # Seconds per leg: ready->hover, descend, grasp, lift, carry, descend,
@@ -57,7 +59,7 @@ class CycleManager(Node):
 
     def __init__(self) -> None:
         super().__init__("cycle_manager")
-        self.declare_parameter("down_probability", DOWN_PROBABILITY_PER_CYCLE)
+        self.declare_parameter("down_probability", tm.RANDOM_FAULT_PROBABILITY_PER_CYCLE)
         self._down_p = float(self.get_parameter("down_probability").value)
 
         self._traj_pub = self.create_publisher(
@@ -69,6 +71,11 @@ class CycleManager(Node):
         self._cycle_pub = self.create_publisher(Int32, f"{ARM_NS}/telemetry/cycle_count", 10)
         self._good_pub = self.create_publisher(Int32, f"{ARM_NS}/telemetry/good_count", 10)
         self._set_state = self.create_client(SetEntityState, "/gz/set_entity_state")
+        self.create_subscription(
+            Float32, f"{ARM_NS}/command/speed_scale", self._on_speed_scale, 10
+        )
+        self._scale = 1.0
+        self._temp = tm.START_TEMP_C
 
         self._state = "RUNNING"
         self._down_until = 0.0
@@ -98,11 +105,14 @@ class CycleManager(Node):
         )
 
     # ---- telemetry ------------------------------------------------------
+    def _on_speed_scale(self, msg: Float32) -> None:
+        scale = min(max(float(msg.data), 0.3), 1.0)
+        if scale != self._scale:
+            self.get_logger().info(f"speed scale {self._scale:.2f} -> {scale:.2f}")
+        self._scale = scale
+
     def _publish_temperature(self) -> None:
-        elapsed = time.monotonic() - self._start
-        base = 35.0 if self._state == "RUNNING" else 28.0
-        value = base + 3.0 * math.sin(elapsed / 20.0) + random.uniform(-0.4, 0.4)
-        self._temp_pub.publish(Float32(data=value))
+        self._temp_pub.publish(Float32(data=self._temp))
 
     # ---- Gazebo helpers -------------------------------------------------
     def _place_part(self, idx: int, x: float, y: float, z: float) -> None:
@@ -168,6 +178,9 @@ class CycleManager(Node):
     # ---- main loop --------------------------------------------------------
     def _tick(self) -> None:
         now = time.monotonic()
+        self._temp = tm.step_temperature(
+            self._temp, self._scale, self._state == "RUNNING", TICK_S
+        )
         self._recycle_parts(TICK_S)
 
         if self._state == "DOWN":
@@ -199,7 +212,7 @@ class CycleManager(Node):
     def _advance_arm(self, dt: float) -> None:
         assert self._plan is not None
         self._seg_t += dt
-        u = min(self._seg_t / SEGMENT_DURATIONS_S[self._seg], 1.0)
+        u = min(self._seg_t * self._scale / SEGMENT_DURATIONS_S[self._seg], 1.0)
         _, q0, f0 = self._plan[self._seg]
         label1, q1, f1 = self._plan[self._seg + 1]
         s = _smooth(u)
@@ -233,11 +246,18 @@ class CycleManager(Node):
             self._good_count += 1
         self._cycle_pub.publish(Int32(data=self._cycle_count))
         self._good_pub.publish(Int32(data=self._good_count))
-        if random.random() < self._down_p:
-            duration = random.uniform(*DOWN_DURATION_RANGE_S)
+        duration = 0.0
+        cause = ""
+        if random.random() < tm.thermal_trip_probability(self._temp):
+            duration = random.uniform(*tm.THERMAL_STOP_RANGE_S)
+            cause = f"thermal protective stop at {self._temp:.1f} C"
+        elif random.random() < self._down_p:
+            duration = random.uniform(*tm.RANDOM_STOP_RANGE_S)
+            cause = "random fault"
+        if duration:
             self._state = "DOWN"
             self._down_until = time.monotonic() + duration
-            self.get_logger().info(f"fault, DOWN for {duration:.1f}s")
+            self.get_logger().info(f"{cause}, DOWN for {duration:.1f}s")
 
 
 def main() -> None:

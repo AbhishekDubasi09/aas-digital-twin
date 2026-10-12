@@ -114,4 +114,6 @@ def test_rest_api_returns_condition_monitoring_submodel_by_id() -> None:
         "OEE",
         "TotalCycleCount",
         "GoodCycleCount",
+        "SpeedScale",
+        "ActiveAlarm",
     }

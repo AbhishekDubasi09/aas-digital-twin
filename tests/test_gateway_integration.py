@@ -39,7 +39,12 @@ async def test_gateway_propagates_opcua_values_into_aas_and_mqtt(
     def fake_publish(topic: str, payload: str) -> None:
         published.append((topic, payload))
 
-    gateway = Gateway(opcua_endpoint=TEST_ENDPOINT, object_store=store, publish=fake_publish)
+    gateway = Gateway(
+        opcua_endpoint=TEST_ENDPOINT,
+        object_store=store,
+        publish=fake_publish,
+        mitigation=False,
+    )
     await gateway.run(poll_interval_s=0.0, max_iterations=1)
 
     operational_state = next(sm for sm in store if sm.id_short == "OperationalState")
@@ -91,3 +96,40 @@ async def test_gateway_tracks_real_downtime_across_polls(
     condition_monitoring = next(sm for sm in store if sm.id_short == "ConditionMonitoring")
     assert gateway._downtime_accum_s >= 5.0
     assert condition_monitoring.get_referable("Availability").value < 1.0
+
+
+async def test_gateway_derates_when_hot_and_restores_when_cool(
+    mock_asset_server: AssetOpcUaServer,
+) -> None:
+    published: list[tuple[str, str]] = []
+    gateway = Gateway(
+        opcua_endpoint=TEST_ENDPOINT,
+        object_store=build_object_store(),
+        publish=lambda topic, payload: published.append((topic, payload)),
+    )
+
+    await mock_asset_server.update_temperature(39.0)
+    await gateway.run(poll_interval_s=0.0, max_iterations=1)
+    assert await mock_asset_server.read_speed_scale() == pytest.approx(0.8)
+    alerts = [json.loads(p) for t, p in published if t.endswith("/alerts")]
+    assert alerts[-1]["alarm"] == "THERMAL_DERATING"
+
+    await mock_asset_server.update_temperature(33.0)
+    await gateway.run(poll_interval_s=0.0, max_iterations=1)
+    assert await mock_asset_server.read_speed_scale() == pytest.approx(1.0)
+    alerts = [json.loads(p) for t, p in published if t.endswith("/alerts")]
+    assert alerts[-1]["alarm"] == "NONE"
+
+
+async def test_gateway_without_mitigation_leaves_speed_alone(
+    mock_asset_server: AssetOpcUaServer,
+) -> None:
+    gateway = Gateway(
+        opcua_endpoint=TEST_ENDPOINT,
+        object_store=build_object_store(),
+        publish=lambda topic, payload: None,
+        mitigation=False,
+    )
+    await mock_asset_server.update_temperature(45.0)
+    await gateway.run(poll_interval_s=0.0, max_iterations=1)
+    assert await mock_asset_server.read_speed_scale() == pytest.approx(1.0)

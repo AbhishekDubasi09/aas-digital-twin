@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
 import random
 import time
 from pathlib import Path
@@ -24,47 +23,53 @@ from pathlib import Path
 from asyncua import Client
 
 from aas_digital_twin.aas.api import build_object_store
+from aas_digital_twin.asset import thermal_model as tm
 from aas_digital_twin.asset.fr3_kinematics import pick_and_place_waypoints
 from aas_digital_twin.gateway.bridge import Gateway, make_paho_publisher
 from aas_digital_twin.opcua.server import AssetOpcUaServer
 
 DEMO_ENDPOINT = "opc.tcp://127.0.0.1:48440/aas-twin-demo/"
-CYCLE_TIME_S = 4.0
-DOWN_PROBABILITY_PER_CYCLE = 0.08
-DOWN_DURATION_RANGE_S = (3.0, 8.0)
-SCRAP_PROBABILITY_PER_CYCLE = 0.05
 CONVEYOR_SPEED_MPS = 0.15
+TIME_SCALE = 1.0  # simulated seconds per wall second, keep 1.0 so OEE uses real elapsed time
 
 
 async def _run_asset_simulator(server: AssetOpcUaServer, stop_event: asyncio.Event) -> None:
-    """Drive the same duty-cycle logic as the ROS2 cycle_manager, in-process."""
-    start = time.monotonic()
+    """Drive the same duty-cycle and thermal model as the ROS2 cycle_manager, in-process.
+
+    The simulator honours the speed scale the gateway writes into OPC UA.
+    """
+    temp = tm.START_TEMP_C
     cycle_count = 0
     good_count = 0
     state = "RUNNING"
     down_until = 0.0
+    sim_t = 0.0
+    last = time.monotonic()
 
     while not stop_event.is_set():
         now = time.monotonic()
-        elapsed = now - start
-        await server.update_temperature(
-            35.0 + 3.0 * math.sin(elapsed / 20.0) + random.uniform(-0.4, 0.4)
-        )
+        dt = (now - last) * TIME_SCALE
+        last = now
+        sim_t += dt
+        scale = await server.read_speed_scale()
+        temp = tm.step_temperature(temp, scale, state == "RUNNING", dt)
+        await server.update_temperature(temp)
 
         if state == "DOWN":
-            if now >= down_until:
+            if sim_t >= down_until:
                 state = "RUNNING"
             else:
                 await server.update_cycle_state("DOWN")
                 await server.update_conveyor_speed(0.0)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.1)
                 continue
 
-        scrap = random.random() < SCRAP_PROBABILITY_PER_CYCLE
+        scrap = random.random() < tm.SCRAP_PROBABILITY_PER_CYCLE
         plan = pick_and_place_waypoints(scrap)
+        cycle_wall_s = tm.BASE_CYCLE_TIME_S / scale / TIME_SCALE
         for _, q, _ in plan[1:]:
             await server.update_joint_positions([float(v) for v in q])
-            await asyncio.sleep(CYCLE_TIME_S / len(plan) / 4)  # sped up for a short demo
+            await asyncio.sleep(cycle_wall_s / len(plan))
         cycle_count += 1
         if not scrap:
             good_count += 1
@@ -72,13 +77,16 @@ async def _run_asset_simulator(server: AssetOpcUaServer, stop_event: asyncio.Eve
         await server.update_conveyor_speed(CONVEYOR_SPEED_MPS)
         await server.update_cycle_state(state)
 
-        if random.random() < DOWN_PROBABILITY_PER_CYCLE:
+        if random.random() < tm.thermal_trip_probability(temp):
             state = "DOWN"
-            down_until = now + random.uniform(*DOWN_DURATION_RANGE_S)
+            down_until = sim_t + random.uniform(*tm.THERMAL_STOP_RANGE_S)
+        elif random.random() < tm.RANDOM_FAULT_PROBABILITY_PER_CYCLE:
+            state = "DOWN"
+            down_until = sim_t + random.uniform(*tm.RANDOM_STOP_RANGE_S)
 
 
 async def run_demo(
-    duration_s: float = 45.0,
+    duration_s: float = 150.0,
     output_dir: Path | None = None,
     use_real_mqtt: bool = True,
 ) -> Path:
@@ -179,7 +187,7 @@ def _plot_oee_series(
 
 
 def main() -> None:
-    """CLI entrypoint: run a 45s demo and print where the outputs landed."""
+    """CLI entrypoint: run the in-process demo and print where the outputs landed."""
     plot_path = asyncio.run(run_demo())
     print(f"Demo complete. OEE plot written to: {plot_path}")
 

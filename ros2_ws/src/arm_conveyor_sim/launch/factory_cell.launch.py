@@ -10,9 +10,12 @@ import os
 import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 ARM_JOINTS = [f"fr3_joint{i}" for i in range(1, 8)]
 FINGER_JOINTS = ["fr3_finger_joint1", "fr3_finger_joint2"]
@@ -80,7 +83,7 @@ def generate_launch_description() -> LaunchDescription:
         arguments=[
             "-topic", "robot_description",
             "-entity", "fr3",
-            "-spawn_service_timeout", "60.0",
+            "-timeout", "180.0",
         ],
         output="screen",
     )
@@ -89,10 +92,16 @@ def generate_launch_description() -> LaunchDescription:
         package="arm_conveyor_sim",
         executable="cycle_manager.py",
         output="screen",
+        parameters=[
+            {"down_probability": ParameterValue(LaunchConfiguration("down_probability"), value_type=float)}
+        ],
+        condition=IfCondition(LaunchConfiguration("run_cycle_manager")),
     )
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument("run_cycle_manager", default_value="true"),
+            DeclareLaunchArgument("down_probability", default_value="0.08"),
             # Lets Gazebo resolve package://franka_description/... mesh URIs.
             SetEnvironmentVariable(
                 "GAZEBO_MODEL_PATH",
