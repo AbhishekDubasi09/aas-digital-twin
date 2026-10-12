@@ -1,0 +1,44 @@
+{
+  "gazebo_runs": {
+    "baseline": {
+      "duration_s": 239.621,
+      "oee": 0.6343330136628119,
+      "availability": 0.7812962853427106,
+      "performance": 0.8332638973459369,
+      "quality": 0.9743589743589743,
+      "cycles": 39,
+      "good_cycles": 38,
+      "max_temperature_c": 42.72998809814453,
+      "down_episodes": 2,
+      "down_seconds": 52.4
+    },
+    "mitigated": {
+      "duration_s": 239.807,
+      "oee": 0.6338267191550848,
+      "availability": 0.9064642378421943,
+      "performance": 0.7176304839203288,
+      "quality": 0.9743589743589743,
+      "cycles": 39,
+      "good_cycles": 38,
+      "max_temperature_c": 39.330013275146484,
+      "down_episodes": 3,
+      "down_seconds": 22.4
+    }
+  },
+  "monte_carlo_300": {
+    "baseline": {
+      "oee_mean": 0.632,
+      "oee_stdev": 0.044,
+      "availability_mean": 0.731,
+      "performance_mean": 0.909,
+      "thermal_stops_mean": 1.95
+    },
+    "mitigated": {
+      "oee_mean": 0.693,
+      "oee_stdev": 0.028,
+      "availability_mean": 0.963,
+      "performance_mean": 0.758,
+      "thermal_stops_mean": 0
+    }
+  }
+}

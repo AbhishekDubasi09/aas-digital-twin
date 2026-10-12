@@ -1,8 +1,8 @@
 flowchart TB
-    B["Business: dashboard view of OEE, maintenance and planning decisions\n(only the dashboard exists, no decision logic)"]
-    F["Functional: Gateway and OEE logic (gateway/bridge.py, aas/oee.py)"]
+    B["Business: dashboard shows OEE, alarm and state\nThe decision to derate is automated in the gateway rule"]
+    F["Functional: gateway OEE logic and derating rule\n(gateway/bridge.py, aas/oee.py, asset/thermal_model.py)"]
     I["Information: AAS submodels Nameplate, TechnicalData,\nOperationalState, ConditionMonitoring (aas/submodels.py)"]
-    C["Communication: OPC UA (asyncua server) and MQTT (Mosquitto)"]
+    C["Communication: OPC UA (asyncua) and MQTT (Mosquitto)"]
     N["Integration: cycle_manager and opcua_bridge_node\n(ROS 2 topics to OPC UA nodes)"]
-    A["Asset: simulated 3-DOF arm and conveyor in Gazebo"]
+    A["Asset: simulated Franka Research 3, conveyor and bins in Gazebo"]
     B --> F --> I --> C --> N --> A

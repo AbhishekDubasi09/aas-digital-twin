@@ -1,220 +1,217 @@
 # aas-digital-twin
 
-An Industrie 4.0 digital twin that implements a real Asset Administration
-Shell (AAS) per IEC 63278-1, exposing standards-compliant submodels over
-OPC UA and MQTT, fed by live telemetry from a simulated 3-DOF robot arm and
-conveyor.
+A digital twin of a Franka Research 3 pick-and-place cell. It follows the
+Industrie 4.0 Asset Administration Shell (AAS) idea, watches the cell
+through OPC UA and MQTT, computes OEE from measured data, and acts on a
+real problem: the arm overheats and stops.
 
-## The problem
+## Problem statement
 
-Most "digital twin" portfolio projects are a 3D viewer wired to fake or
-random data. They skip the part that actually makes a digital twin an
-Industrie 4.0 concept: a standardized Asset Administration Shell that
-exposes an asset's identification, technical data, live state, and
-condition through a real protocol stack, so any AAS-compliant tool can
-consume it without knowing anything about the underlying asset.
+A pick-and-place cell moves parts from a conveyor into a good bin and a
+reject bin. The arm heats up while it works. Above about 40 C the drive
+protection can trip, and the cell stops for 20 to 40 seconds while it
+cools down. Nobody sees this coming. The plant only notices later that
+OEE is low.
 
-This project implements that shell. There is a simulated asset (a 3-DOF arm
-and conveyor in Gazebo), but everything downstream of it, the OPC UA
-server, the four AAS submodels, the REST API, the OEE calculation, the MQTT
-bridge, is the same code that would sit in front of a real machine.
+This project answers three questions about that cell:
+
+1. **What is happening right now?** State, temperature, joint positions,
+   cycle counts, all exposed through standard interfaces (OPC UA, AAS REST
+   API, MQTT).
+2. **How productive is it?** Availability, Performance, Quality and OEE,
+   computed from measured uptime, downtime and cycle counts.
+3. **Can the twin prevent the loss?** Yes, in the simulation. The gateway
+   watches the temperature. At 38 C it writes a speed scale of 0.8 back to
+   the asset over OPC UA and raises an MQTT alert. The arm moves slower,
+   heats less, and stays below the trip zone.
+
+![scenario loop](docs/diagrams/scenario_thermal_loop.png)
+
+The asset is simulated (Gazebo Classic 11, ROS 2 Humble). The Franka
+Research 3 model comes from the `franka_description` package, and the pick
+and place path is solved with the FR3 kinematics in
+[`fr3_kinematics.py`](src/aas_digital_twin/asset/fr3_kinematics.py).
+Everything downstream of the asset is the code that would sit in front of
+a real machine.
+
+## What the runs show
+
+Two 240 s Gazebo runs of the same cell, one without derating and one with
+it. The numbers come from `docs/run_output/ab_summary.json`, which is
+computed from the logged CSV files.
+
+| | Baseline | With derating |
+|---|---|---|
+| Thermal protective stops | 2 | 0 |
+| Highest temperature | 42.7 C | 39.3 C |
+| Availability | 0.78 | 0.91 |
+| Performance | 0.83 | 0.72 |
+| Quality | 0.97 | 0.97 |
+| OEE | 0.634 | 0.634 |
+
+In this pair of runs the OEE is equal. The derated run happened to hit
+three random faults (22 s of downtime), which the baseline did not. One
+4-minute run is noisy. The same thermal model run for 300 random seeds
+gives a clearer picture:
+
+| 300 seeds, 240 s each | Baseline | With derating |
+|---|---|---|
+| Thermal stops per run | 1.95 | 0 |
+| Availability | 0.73 | 0.96 |
+| Performance | 0.91 | 0.76 |
+| OEE (mean, standard deviation) | 0.632 (0.044) | 0.693 (0.028) |
+
+Derating trades speed for fewer long stops. In the model that is a net
+gain of about 0.06 OEE and a much steadier result. If a trip took only a
+few seconds to clear, the trade would not pay off. That assumption is
+documented in [`thermal_model.py`](src/aas_digital_twin/asset/thermal_model.py).
+
+![A/B comparison](docs/run_output/ab_comparison.png)
+
+The OEE curve is zero for the first 12 seconds and jagged for the next
+minute. This is warm-up. The first part has to travel along the belt, and
+early values rest on one to five finished cycles, so each new cycle moves
+Performance a lot.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph Asset["Asset layer"]
-        Gazebo["Gazebo Classic 11\n3-DOF arm + conveyor\n(ROS2 Humble)"]
-        CycleManager["cycle_manager node\nRUNNING/DOWN duty cycle,\njoint trajectories, temperature"]
-        Gazebo <--> CycleManager
-    end
+![architecture](docs/diagrams/architecture.png)
 
-    CycleManager -- "ROS2 topics" --> OPCUABridge["opcua_bridge_node\n(ROS2 <-> OPC UA)"]
+| Stage | Module |
+|---|---|
+| Asset: FR3, conveyor, bins, parts | `ros2_ws/src/arm_conveyor_sim/` (world, launch, `cycle_manager.py`) |
+| ROS 2 to OPC UA bridge | `scripts/opcua_bridge_node.py` |
+| OPC UA server (asyncua) | `src/aas_digital_twin/opcua/server.py` |
+| Four AAS submodels, REST API v3.0 (BaSyx) | `src/aas_digital_twin/aas/` |
+| Gateway: OPC UA to AAS to MQTT, OEE, derating rule | `src/aas_digital_twin/gateway/bridge.py`, `run.py` |
+| Thermal model and FR3 kinematics | `src/aas_digital_twin/asset/` |
+| Dashboard (Matplotlib, MQTT) | `src/aas_digital_twin/dashboard/live_dashboard.py` |
 
-    subgraph Comm["Communication layer"]
-        OPCUA["AssetOpcUaServer\n(asyncua)\njoint states, conveyor,\ntemperature, cycle state"]
-    end
+One telemetry update, step by step:
 
-    OPCUABridge --> OPCUA
-    OPCUA -- "polled by" --> Gateway
+![data flow](docs/diagrams/data_flow_sequence.png)
 
-    subgraph Info["Information layer"]
-        Gateway["Gateway\n(gateway/bridge.py)"]
-        Nameplate["Nameplate submodel"]
-        TechnicalData["TechnicalData submodel"]
-        OperationalState["OperationalState submodel"]
-        ConditionMonitoring["ConditionMonitoring submodel\n(OEE = Availability x Performance x Quality)"]
-        RestApi["AAS REST API v3.0\n(basyx WSGIApp)"]
+## RAMI 4.0 and IEC 63278-1
 
-        Gateway --> OperationalState
-        Gateway --> ConditionMonitoring
-        Nameplate --> RestApi
-        TechnicalData --> RestApi
-        OperationalState --> RestApi
-        ConditionMonitoring --> RestApi
-    end
+IEC 63278-1 describes the Asset Administration Shell: a standard
+digital wrapper around an asset that carries its identity, its data and
+its services in submodels. RAMI 4.0 is the reference architecture model
+that arranges an Industrie 4.0 system in layers, from the physical asset
+up to the business. The AAS sits at the boundary between the asset and the
+information world.
 
-    subgraph Functional["Functional layer"]
-        MQTT["Eclipse Mosquitto"]
-        Dashboard["live_dashboard.py\n(Matplotlib)"]
-        MQTT --> Dashboard
-    end
+![RAMI layers](docs/diagrams/rami40_layers.png)
 
-    Gateway -- "publish" --> MQTT
-```
-
-The demo script (`aas_digital_twin.demo`) drives the same OPC UA / AAS /
-gateway / MQTT code path with a lightweight in-process simulator instead of
-launching Gazebo each run, so it stays runnable without a ROS2 environment.
-The full Gazebo-based asset layer is verified separately (see
-[ros2_ws/](ros2_ws/)) and is what the diagram above shows end to end.
-
-Diagrams (Mermaid sources, PNG and SVG) are in [docs/diagrams/](docs/diagrams/). Interview notes are in [docs/INTERVIEW_CHEATSHEET.md](docs/INTERVIEW_CHEATSHEET.md).
-
-## Where this sits in RAMI 4.0
-
-IEC 63278-1 defines the Asset Administration Shell as the standardized
-interface between an asset and the digital world, and RAMI 4.0 (the
-Reference Architecture Model Industrie 4.0) places it as the boundary
-between the **Asset** layer and the **Communication**, **Information**,
-and **Functional** layers of a factory's IT stack:
-
-- **Asset layer**: the physical (here, simulated) machine, the Gazebo arm
-  and conveyor.
-- **Communication layer**: OPC UA (IEC 62541), the standard shop-floor
-  protocol for exposing structured, semantically typed data from a
-  machine controller.
-- **Information layer**: the AAS itself, the four submodels served
-  through the standardized AAS REST API v3.0, giving any AAS-aware tool a
-  uniform way to read this asset's nameplate, technical data, operational
-  state, and condition, regardless of the underlying machine.
-- **Functional layer**: the MQTT bridge and dashboard, representative of
-  the cloud/MES/analytics layer that consumes AAS data for monitoring and
-  decision-making.
-
-This project does not implement the Business layer of RAMI 4.0.
+- **Asset**: the simulated FR3 cell.
+- **Integration**: `cycle_manager` and `opcua_bridge_node`.
+- **Communication**: OPC UA toward the asset side, MQTT toward consumers.
+- **Information**: the four AAS submodels.
+- **Functional**: the gateway, with OEE and the derating rule.
+- **Business**: only a dashboard. No planning or maintenance system exists.
 
 ## The four submodels
 
 | Submodel | Content | Source |
 |---|---|---|
-| **Nameplate** | Manufacturer, product designation, serial number, year of construction | Static |
-| **TechnicalData** | Degrees of freedom, max payload, reach, max joint velocity | Static |
-| **OperationalState** | Live joint positions, conveyor speed, temperature, cycle state | Live, from OPC UA |
-| **ConditionMonitoring** | OEE = Availability × Performance × Quality, plus cycle/good counts | Computed from measured uptime/downtime |
+| Nameplate | Manufacturer, product designation, serial number, year | Static |
+| TechnicalData | 7 degrees of freedom, 3 kg payload, 0.855 m reach, joint speed, conveyor length | Static |
+| OperationalState | Seven joint positions, conveyor speed, temperature, cycle state | Live, from OPC UA |
+| ConditionMonitoring | Availability, Performance, Quality, OEE, counts, speed scale, active alarm | Computed in the gateway |
 
-OEE is never hardcoded. `Availability` comes from real elapsed
-run-time vs. measured downtime (tracked from the asset's actual
-RUNNING/DOWN state transitions), `Performance` from the ratio of ideal to
-actual cycle time given the real cycle count, and `Quality` from the real
-ratio of good to total parts produced. See
-[`src/aas_digital_twin/aas/oee.py`](src/aas_digital_twin/aas/oee.py).
+OEE is never hardcoded. The formulas are in
+[`oee.py`](src/aas_digital_twin/aas/oee.py).
 
-## Repository layout
+- Availability A = run time / planned time
+- Performance P = min(1, ideal cycle time x cycles / run time)
+- Quality Q = good cycles / total cycles
+- OEE = A x P x Q
 
-```
-src/aas_digital_twin/
-  opcua/server.py       OPC UA server (asyncua) - source-agnostic
-  aas/submodels.py      The four AAS submodels (basyx-python-sdk)
-  aas/oee.py             Pure OEE calculation
-  aas/api.py              AAS REST API v3.0 (basyx's WSGIApp)
-  gateway/bridge.py     OPC UA -> AAS -> MQTT gateway
-  dashboard/live_dashboard.py   Matplotlib MQTT dashboard
-  demo.py                Fixed-duration end-to-end demo
-ros2_ws/src/arm_conveyor_sim/
-  urdf/                  3-DOF arm + conveyor URDF
-  worlds/                 Gazebo world
-  scripts/cycle_manager.py     Real duty-cycle state machine (ROS2 node)
-  scripts/opcua_bridge_node.py  ROS2 -> OPC UA bridge (ROS2 node)
-tests/                    pytest suite (unit + integration)
-```
+The ideal cycle time constant is **4.0 s** (`IDEAL_CYCLE_TIME_S`). The FR3
+path takes 4.4 s at full speed, so P is about 0.91 when nothing slows the
+cell down.
 
 ## Installation
 
-Requires Python 3.10+.
+Python 3.10 or newer for the library and tests:
 
 ```bash
 python -m venv .venv
-.venv/Scripts/activate     # or `source .venv/bin/activate` on Linux/macOS
+source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-The ROS2/Gazebo asset layer additionally requires ROS 2 Humble and Gazebo
-Classic 11 (developed and verified here under WSL2 + Ubuntu 22.04):
+The Gazebo part needs WSL2 or Linux with Ubuntu 22.04, ROS 2 Humble,
+Gazebo Classic 11, Mosquitto, ffmpeg and ImageMagick:
 
 ```bash
-cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-ros2 launch arm_conveyor_sim factory_cell.launch.py
+sudo apt install ros-humble-franka-description mosquitto ffmpeg imagemagick xdotool bc
+mkdir -p ~/aas_ros2_ws/src && cp -r ros2_ws/src/arm_conveyor_sim ~/aas_ros2_ws/src/
+cd ~/aas_ros2_ws && colcon build --packages-select arm_conveyor_sim
 ```
+
+Build inside the Linux home folder. CMake fails on `/mnt/c`.
 
 ## Usage
 
-Run the test suite:
+Tests (a Mosquitto broker on `localhost:1883` enables the live MQTT tests):
 
 ```bash
+mosquitto -d
 pytest
 ```
 
-Run the fixed-duration demo (OPC UA server, gateway, AAS submodels, and a
-real MQTT broker all running in-process, requires a Mosquitto broker on
-`localhost:1883`, or pass `use_real_mqtt=False` to skip MQTT):
+In-process demo without ROS or Gazebo (same OPC UA, AAS, gateway and MQTT
+code, simulated cell):
 
 ```bash
-python -m aas_digital_twin.demo   # or scripts/run_demo.sh
+python -m aas_digital_twin.demo
 ```
 
-This writes `docs/run_output/telemetry.jsonl` (every MQTT message actually
-published during the run) and `docs/run_output/oee_over_time.png` (the OEE
-and its components plotted from that same run).
-
-Run the AAS REST API server standalone:
+Full Gazebo run, with video of the Gazebo window and the dashboard:
 
 ```bash
-python -m aas_digital_twin.aas.api
-# GET http://127.0.0.1:8080/api/v3.0/shells
-# GET http://127.0.0.1:8080/api/v3.0/submodels
+DURATION=240 MITIGATION=0 TAG=baseline  bash scripts/run_cell_demo.sh
+DURATION=240 MITIGATION=1 TAG=mitigated bash scripts/run_cell_demo.sh
+python scripts/compare_runs.py docs/run_output
 ```
 
-Run the live dashboard (requires a running gateway publishing to MQTT):
-
-```bash
-python -m aas_digital_twin.dashboard.live_dashboard
-```
+The AAS REST API is served on `http://127.0.0.1:8080/api/v3.0/submodels`
+while the gateway runs.
 
 ## Example output
 
-The plot and telemetry log below in `docs/run_output/` were produced by
-actually running `python -m aas_digital_twin.demo` for 45 seconds against a
-live Mosquitto broker. Nothing here is fabricated or hand-edited.
+These files were produced by running `scripts/run_cell_demo.sh` on the
+setup described above.
 
-![OEE over time from a real demo run](docs/run_output/oee_over_time.png)
+- Gazebo video: [`docs/media/gazebo_simulation.mp4`](docs/media/gazebo_simulation.mp4)
+- Dashboard video: [`docs/media/dashboard_live.mp4`](docs/media/dashboard_live.mp4)
+- Short clips of the problem and the fix: [`review_snippet_baseline_thermal_stop.mp4`](docs/media/review_snippet_baseline_thermal_stop.mp4), [`review_snippet_with_derating.mp4`](docs/media/review_snippet_with_derating.mp4)
+- OEE plot: [`docs/run_output/oee_over_time.png`](docs/run_output/oee_over_time.png)
+- AAS REST output: [`docs/run_output/aas_submodels.json`](docs/run_output/aas_submodels.json)
+- Telemetry log: [`docs/run_output/telemetry.csv`](docs/run_output/telemetry.csv)
+- pytest result: [`docs/run_output/pytest_output.txt`](docs/run_output/pytest_output.txt)
 
-OEE is 0 at t = 0 because no cycle has finished yet, then jumps to 1.0 once
-the first cycle completes (about 1 s). Early points rest on one or two
-cycles, so they are a small-sample warm-up effect. The first fault came
-at about 11 s, and Availability then fell to about 0.59 by 17 s. The run
-ended at OEE 0.57 (A 0.591, P 1.0, Q 0.963, from the last message in
-`telemetry.jsonl`). Performance stays at its cap of 1.0 because the demo
-runs simulated cycles faster than the 4 s ideal cycle time. The numbers
-differ on every run because faults are random.
+![Gazebo scene](docs/media/gazebo_scene.png)
+
+![dashboard](docs/media/dashboard_live.png)
 
 ## Limitations
 
-- The asset is simulated (Gazebo physics, not physical hardware). No
-  physical robot or conveyor was used anywhere in this project.
-- The OEE metric is illustrative: it is computed correctly from the
-  simulator's synthetic uptime/downtime/quality data, but that data is
-  generated by a random duty-cycle model, not a real production line.
-- The demo script's in-process asset simulator duplicates the duty-cycle
-  logic of the ROS2 `cycle_manager` node rather than launching Gazebo
-  directly, so it can run without a ROS2/WSL environment. The full
-  Gazebo-based path was verified manually (robot spawns, trajectory plugin
-  executes waypoints, ROS2 topics carry real telemetry) rather than through
-  the automated pytest suite, since it depends on a GUI-capable Gazebo
-  process.
+- The asset is simulated. There is no physical hardware.
+- The temperature and the trip behavior come from a documented model, not
+  from a real robot. The conclusion "derating helps" holds under that
+  model's assumptions only.
+- OEE is computed from simulated uptime, not factory data.
+- Parts are moved by setting their pose in Gazebo. There is no contact
+  physics or grasp simulation.
+- There is no image processing in this project.
+- OPC UA is polled at 2 Hz. Subscriptions are not implemented.
+- There is no authentication or TLS on OPC UA, the REST API or MQTT.
+- One Gazebo run per condition is not a statistical result. Use the
+  300-seed model run for that.
+- The project was built with an AI coding assistant. The author must be
+  able to explain every module.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

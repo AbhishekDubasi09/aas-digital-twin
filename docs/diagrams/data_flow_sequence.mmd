@@ -6,15 +6,21 @@ sequenceDiagram
     participant AAS as AAS submodels
     participant MQ as Mosquitto
     participant DB as live_dashboard
-    CM->>BR: ROS 2 telemetry topics (state, temperature, counts)
+    CM->>BR: ROS 2 topics (state, temperature, counts, joint_states)
     BR->>OPC: write OPC UA nodes
-    loop every 1 s
+    loop every 0.5 s
         GW->>OPC: read AssetCell children
         OPC-->>GW: values
+        alt temperature at or above 38 C
+            GW->>OPC: write SpeedScale = 0.8
+            GW->>MQ: publish alerts THERMAL_DERATING
+        end
         GW->>AAS: write OperationalState
         GW->>GW: compute_oee(uptime, downtime, cycles)
         GW->>AAS: write ConditionMonitoring
         GW->>MQ: publish operational_state and condition_monitoring
     end
+    BR->>OPC: read SpeedScale every 0.2 s
+    BR->>CM: /arm_conveyor/command/speed_scale
     MQ-->>DB: JSON messages
     DB->>DB: append to buffer, redraw plots

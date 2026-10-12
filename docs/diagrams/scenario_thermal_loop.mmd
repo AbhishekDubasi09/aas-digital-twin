@@ -1,0 +1,8 @@
+﻿flowchart LR
+    P["Problem: the arm heats up while working.\nAbove 40 C it can trip into a 20 to 40 s protective stop.\nNobody sees it coming and OEE drops."]
+    S["Sense: temperature reaches the gateway\nover OPC UA every 0.5 s"]
+    D["Decide: at 38 C or more\nthe gateway sets speed to 0.8.\nBack to full speed at 34 C or less"]
+    A["Act: SpeedScale goes over OPC UA\nto the ROS bridge and cycle_manager.\nThe arm moves slower and heats less"]
+    R["Result: fewer thermal stops.\nAvailability rises, Performance falls a little.\nOEE improves on average and the alarm is visible in the AAS"]
+    P --> S --> D --> A --> R
+    R -. "keeps watching" .-> S

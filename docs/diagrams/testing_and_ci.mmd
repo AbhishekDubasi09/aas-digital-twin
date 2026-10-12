@@ -1,13 +1,15 @@
 flowchart TB
-    subgraph Tests["pytest, 32 tests"]
+    subgraph Tests["pytest, 45 tests"]
         U1["test_oee.py: formula, zero uptime, zero cycles, errors"]
-        U2["test_aas_submodels.py: four submodels, serialization"]
-        U3["test_opcua_server.py: real OPC UA client over TCP"]
-        U4["test_gateway_integration.py: OPC UA to AAS to MQTT payloads, fake publisher"]
-        U5["test_dashboard_buffer.py: dashboard data buffer"]
-        U6["test_demo.py: demo run writes log and plot, no live broker"]
+        U2["test_fr3_kinematics.py: FK, IK, joint limits, bin reach"]
+        U3["test_thermal_model.py: heating, trip curve, derating gain over 150 seeds"]
+        U4["test_aas_submodels.py: four submodels, serialization, REST by id"]
+        U5["test_opcua_server.py: real OPC UA client over TCP, 7 joints"]
+        U6["test_gateway_integration.py: OPC UA to AAS to MQTT, derating write-back"]
+        U7["test_dashboard_buffer.py: dashboard data buffer"]
+        U8["test_demo.py: in-process demo writes log and plot"]
     end
     subgraph CI["GitHub Actions order"]
-        C1["ruff"] --> C2["black --check"] --> C3["mypy"] --> C4["pytest"]
+        C1["black --check"] --> C2["ruff"] --> C3["mypy"] --> C4["pytest"]
     end
     Tests --- C4

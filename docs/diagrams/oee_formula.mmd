@@ -1,8 +1,8 @@
 flowchart LR
-    T["planned time = now - start"] --> RT["run time = planned - downtime"]
+    T["planned time = now - gateway start"] --> RT["run time = planned - downtime"]
     D["downtime\n(sum of poll gaps while state is DOWN)"] --> RT
     RT --> A["Availability A = run time / planned time"]
-    N["total cycles"] --> P["Performance P = min(1, ideal 4 s x cycles / run time)"]
+    N["total cycles"] --> P["Performance P = min(1, ideal 4.0 s x cycles / run time)"]
     RT --> P
     N --> Q["Quality Q = good cycles / total cycles"]
     G["good cycles"] --> Q

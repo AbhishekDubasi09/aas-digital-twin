@@ -1,14 +1,14 @@
 flowchart LR
     subgraph Asset["Asset layer (ROS 2 Humble + Gazebo Classic 11)"]
-        Arm["3-DOF arm\narm_conveyor.urdf"]
-        Conv["Conveyor\nbelt_roller_joint"]
-        CM["cycle_manager node\nRUNNING / DOWN"]
-        CM -- "joint trajectory" --> Arm
-        CM -- "belt angle" --> Conv
+        Arm["Franka Research 3\n7 joints + hand\n(franka_description)"]
+        Conv["Conveyor, stopper,\ngood and reject bins"]
+        CM["cycle_manager.py\nRUNNING / DOWN\nthermal model"]
+        CM -- "joint targets 30 Hz" --> Arm
+        CM -- "part poses" --> Conv
     end
-    Bridge["opcua_bridge_node\nROS 2 topics to OPC UA"]
+    Bridge["opcua_bridge_node.py\nROS 2 topics <-> OPC UA"]
     subgraph Comm["Shop-floor protocol"]
-        OPC["AssetOpcUaServer\nasyncua"]
+        OPC["AssetOpcUaServer\nasyncua, IEC 62541"]
     end
     subgraph AAS["AAS layer (BaSyx, REST API v3.0)"]
         NP["Nameplate"]
@@ -16,11 +16,14 @@ flowchart LR
         OS["OperationalState"]
         CMon["ConditionMonitoring"]
     end
-    GW["Gateway (gateway/bridge.py)\nOPC UA to AAS to MQTT\nOEE computed here"]
+    GW["Gateway (gateway/bridge.py)\nOPC UA to AAS to MQTT\nOEE computed here\nderating rule here"]
     MQ["Mosquitto broker"]
     DB["live_dashboard.py\nMatplotlib"]
-    CM -- "ROS 2 topics" --> Bridge --> OPC
-    OPC -- "poll 1 Hz" --> GW
+    CM -- "telemetry topics" --> Bridge --> OPC
+    OPC -- "poll 0.5 s" --> GW
     GW -- "write" --> OS
     GW -- "write" --> CMon
-    GW -- "publish" --> MQ --> DB
+    GW -- "publish telemetry + alerts" --> MQ --> DB
+    GW -. "write SpeedScale" .-> OPC
+    OPC -. "SpeedScale" .-> Bridge
+    Bridge -. "/command/speed_scale" .-> CM
