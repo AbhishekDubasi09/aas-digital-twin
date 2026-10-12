@@ -82,6 +82,9 @@ class CycleManager(Node):
         self._cycle_count = 0
         self._good_count = 0
         self._start = time.monotonic()
+        self._last_tick = self._start
+        self._rate_t0 = self._start
+        self._tick_count = 0
 
         # Part bookkeeping. y is the position along the belt.
         self._part_y = [BELT_START_Y - 0.12 * i for i in range(PART_COUNT)]
@@ -178,10 +181,16 @@ class CycleManager(Node):
     # ---- main loop --------------------------------------------------------
     def _tick(self) -> None:
         now = time.monotonic()
-        self._temp = tm.step_temperature(
-            self._temp, self._scale, self._state == "RUNNING", TICK_S
-        )
-        self._recycle_parts(TICK_S)
+        # Use real elapsed time so the model does not depend on the timer rate.
+        dt = min(now - self._last_tick, 0.25)
+        self._last_tick = now
+        self._tick_count += 1
+        if now - self._rate_t0 >= 10.0:
+            self.get_logger().info(f"tick rate {self._tick_count / (now - self._rate_t0):.1f} Hz")
+            self._tick_count = 0
+            self._rate_t0 = now
+        self._temp = tm.step_temperature(self._temp, self._scale, self._state == "RUNNING", dt)
+        self._recycle_parts(dt)
 
         if self._state == "DOWN":
             self._state_pub.publish(String(data="DOWN"))
@@ -192,7 +201,7 @@ class CycleManager(Node):
             self._send_joints()
             return
 
-        moving = self._advance_belt(TICK_S)
+        moving = self._advance_belt(dt)
         self._speed_pub.publish(Float32(data=CONVEYOR_SPEED_MPS if moving else 0.0))
         self._state_pub.publish(String(data="RUNNING"))
 
@@ -207,7 +216,7 @@ class CycleManager(Node):
             self._held = front
             return
 
-        self._advance_arm(TICK_S)
+        self._advance_arm(dt)
 
     def _advance_arm(self, dt: float) -> None:
         assert self._plan is not None

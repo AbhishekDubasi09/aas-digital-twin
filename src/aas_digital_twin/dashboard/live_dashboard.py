@@ -9,6 +9,7 @@ from real MQTT messages (record_dashboard).
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -46,10 +47,15 @@ class TelemetryBuffer:
     good_cycles: deque = field(default_factory=_series)
     speed_scale: deque = field(default_factory=_series)
     alarm: deque = field(default_factory=_series)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def ingest(self, topic: str, payload: str, timestamp_s: float) -> None:
         """Parse one MQTT message and append its values to the buffers."""
         data = json.loads(payload)
+        with self.lock:
+            self._ingest_locked(topic, data, timestamp_s)
+
+    def _ingest_locked(self, topic: str, data: dict[str, Any], timestamp_s: float) -> None:
         if topic == MQTT_TOPIC_OPERATIONAL_STATE:
             self.timestamps_op.append(timestamp_s)
             for i, series in enumerate(self.joints, start=1):
@@ -70,6 +76,22 @@ class TelemetryBuffer:
 
 def draw_dashboard(fig: Any, buffer: TelemetryBuffer) -> None:
     """Redraw the three dashboard panels from the buffer."""
+    with buffer.lock:
+        snap = TelemetryBuffer()
+        snap.timestamps_op = deque(buffer.timestamps_op)
+        snap.joints = [deque(j) for j in buffer.joints]
+        snap.temperature = deque(buffer.temperature)
+        snap.states = deque(buffer.states)
+        snap.timestamps_oee = deque(buffer.timestamps_oee)
+        snap.oee = deque(buffer.oee)
+        snap.availability = deque(buffer.availability)
+        snap.performance = deque(buffer.performance)
+        snap.quality = deque(buffer.quality)
+        snap.total_cycles = deque(buffer.total_cycles)
+        snap.good_cycles = deque(buffer.good_cycles)
+        snap.speed_scale = deque(buffer.speed_scale)
+        snap.alarm = deque(buffer.alarm)
+    buffer = snap
     fig.clear()
     ax_oee, ax_joints, ax_temp = fig.subplots(3, 1, gridspec_kw={"height_ratios": [3, 2, 1.4]})
 
@@ -92,10 +114,14 @@ def draw_dashboard(fig: Any, buffer: TelemetryBuffer) -> None:
     t_op = list(buffer.timestamps_op)
     for i, series in enumerate(buffer.joints, start=1):
         ax_joints.plot(t_op, list(series), label=f"J{i}", linewidth=1.2)
-    ax_joints.legend(loc="upper right", ncol=7, fontsize=7)
+    ax_joints.legend(
+        loc="lower right", ncol=7, fontsize=7, bbox_to_anchor=(1.0, 1.0), frameon=False
+    )
     ax_joints.set_title("FR3 joint positions (rad)", fontsize=10, loc="left")
 
-    ax_temp.plot(t_op, list(buffer.temperature), color="tab:orange")
+    # Values at or below 1 C are the "no reading yet" placeholder, not a measurement.
+    temp_pairs = [(t, v) for t, v in zip(t_op, buffer.temperature, strict=False) if v > 1.0]
+    ax_temp.plot([t for t, _ in temp_pairs], [v for _, v in temp_pairs], color="tab:orange")
     ax_temp.axhline(38.0, color="tab:red", linestyle="--", linewidth=0.8)
     ax_temp.axhline(34.0, color="tab:green", linestyle="--", linewidth=0.8)
     ax_temp.text(0.01, 0.82, "derate at 38", transform=ax_temp.transAxes, fontsize=7)
@@ -189,16 +215,68 @@ def record_dashboard(
     client.loop_stop()
 
 
+def render_from_csv(csv_path: Path, out_mp4: Path, out_png: Path, fps: int = 4) -> None:
+    """Render the dashboard to an MP4 from a telemetry CSV logged by gateway.run.
+
+    Every CSV row is what the gateway also published to MQTT at that moment,
+    so the picture is the same as the live dashboard, with exact timing.
+    """
+    import csv
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FFMpegWriter
+
+    rows = list(csv.DictReader(csv_path.open()))
+    buffer = TelemetryBuffer()
+    fig = plt.figure(figsize=(12.8, 7.2), dpi=100)
+    writer = FFMpegWriter(fps=fps, codec="libx264", extra_args=["-pix_fmt", "yuv420p"])
+    end = float(rows[-1]["t_s"])
+    idx = 0
+    n_frames = int(end * fps) + 1
+    with writer.saving(fig, str(out_mp4), dpi=100):
+        for frame in range(n_frames):
+            now = frame / fps
+            while idx < len(rows) and float(rows[idx]["t_s"]) <= now:
+                r = rows[idx]
+                op = {f"Joint{i}PositionRad": float(r[f"joint{i}_rad"]) for i in range(1, 8)}
+                op["TemperatureCelsius"] = float(r["temperature_c"])
+                op["CycleState"] = r["state"]
+                cm = {
+                    "oee": float(r["oee"]),
+                    "availability": float(r["availability"]),
+                    "performance": float(r["performance"]),
+                    "quality": float(r["quality"]),
+                    "total_cycle_count": int(float(r["total_cycles"])),
+                    "good_cycle_count": int(float(r["good_cycles"])),
+                    "speed_scale": float(r["speed_scale"]),
+                    "alarm": r["alarm"],
+                }
+                t = float(r["t_s"])
+                buffer.ingest(MQTT_TOPIC_OPERATIONAL_STATE, json.dumps(op), t)
+                buffer.ingest(MQTT_TOPIC_CONDITION_MONITORING, json.dumps(cm), t)
+                idx += 1
+            draw_dashboard(fig, buffer)
+            writer.grab_frame()
+    fig.savefig(out_png, dpi=100)
+    plt.close(fig)
+
+
 def main() -> None:
-    """CLI entry point: live window, or --record to write an MP4."""
+    """CLI entry point: live window, --record to write an MP4, or --from-csv to replay."""
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--record", type=float, default=0.0, help="seconds to record to MP4")
+    parser.add_argument("--from-csv", type=Path, default=None, help="render from a telemetry CSV")
     parser.add_argument("--out-mp4", type=Path, default=Path("docs/media/dashboard_live.mp4"))
     parser.add_argument("--out-png", type=Path, default=Path("docs/media/dashboard_live.png"))
     args = parser.parse_args()
-    if args.record > 0:
+    if args.from_csv is not None:
+        render_from_csv(args.from_csv, args.out_mp4, args.out_png)
+    elif args.record > 0:
         record_dashboard(args.out_mp4, args.out_png, args.record)
     else:
         run_live_dashboard()

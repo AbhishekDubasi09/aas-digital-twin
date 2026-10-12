@@ -18,11 +18,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Lint (ruff)
-        run: ruff check src tests
       - name: Format check (black)
         run: black --check src tests
+      - name: Lint (ruff)
+        run: ruff check src tests
       - name: Type check (mypy)
         run: mypy src
+      - name: Start Mosquitto broker
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q mosquitto
+          sudo systemctl stop mosquitto || true
+          mosquitto -d
+          sleep 1
       - name: Test (pytest)
         run: pytest -v
