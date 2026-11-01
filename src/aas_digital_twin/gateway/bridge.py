@@ -26,6 +26,16 @@ MQTT_TOPIC_OPERATIONAL_STATE = "aas-digital-twin/operational_state"
 MQTT_TOPIC_CONDITION_MONITORING = "aas-digital-twin/condition_monitoring"
 MQTT_TOPIC_ALERTS = "aas-digital-twin/alerts"
 
+TELEMETRY_QOS = 0
+"""Telemetry arrives every poll, so a lost sample is replaced by the next one."""
+ALERT_QOS = 1
+"""An alert is sent once, so the broker must confirm it (at least once delivery)."""
+
+
+def qos_for_topic(topic: str) -> int:
+    """Return the MQTT quality of service for a topic: alerts are confirmed, telemetry is not."""
+    return ALERT_QOS if topic == MQTT_TOPIC_ALERTS else TELEMETRY_QOS
+
 
 class MqttPublisher(Protocol):
     """Minimal publish interface so tests can inject a stub instead of a broker."""
@@ -208,6 +218,6 @@ def make_paho_publisher(host: str = "localhost", port: int = 1883) -> MqttPublis
     client.loop_start()
 
     def _publish(topic: str, payload: str) -> None:
-        client.publish(topic, payload)
+        client.publish(topic, payload, qos=qos_for_topic(topic))
 
     return _publish
