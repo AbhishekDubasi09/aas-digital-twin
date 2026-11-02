@@ -91,6 +91,19 @@ One telemetry update, step by step:
 
 ![data flow](docs/diagrams/data_flow_sequence.png)
 
+### MQTT topics and delivery
+
+| Topic | Content | Rate | QoS |
+|---|---|---|---|
+| `aas-digital-twin/operational_state` | Joint positions, temperature, cycle state | Every poll (2 Hz) | 0 |
+| `aas-digital-twin/condition_monitoring` | Availability, Performance, Quality, OEE | Every poll (2 Hz) | 0 |
+| `aas-digital-twin/alerts` | Derating or restore event with temperature and speed scale | Only when the speed scale changes | 1 |
+
+Telemetry uses QoS 0 because the next sample replaces a lost one. An alert is
+sent once, so it uses QoS 1 and the broker confirms it. QoS 1 means at least
+once, so a subscriber can see the same alert twice. The level is chosen per
+topic in `qos_for_topic()` in `gateway/bridge.py`.
+
 ## RAMI 4.0 and IEC 63278-1
 
 IEC 63278-1 describes the Asset Administration Shell: a standard
