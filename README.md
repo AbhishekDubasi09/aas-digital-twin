@@ -1,4 +1,6 @@
-# aas-digital-twin
+# Cool Under Load: an AAS Digital Twin for a Pick-and-Place Cell
+
+*Repository: `aas-digital-twin`. Simulation only.*
 
 A digital twin of a Franka Research 3 pick-and-place cell. It follows the
 Industrie 4.0 Asset Administration Shell (AAS) idea, watches the cell
